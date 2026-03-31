@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# finstack — one-command install
+# Usage: ./setup [--no-prefix | --prefix]
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SKILLS_DIR="$HOME/.claude/skills"
+FINSTACK_DATA="$HOME/.finstack"
+
+echo "finstack — An Operating System for Investment Thinking"
+echo ""
+
+# ── Check bun ──
+if ! command -v bun &>/dev/null; then
+  echo "Error: bun is required. Install: curl -fsSL https://bun.sh/install | bash"
+  exit 1
+fi
+
+# ── Parse args ──
+PREFIX=""
+for arg in "$@"; do
+  case "$arg" in
+    --prefix)    PREFIX="finstack-" ;;
+    --no-prefix) PREFIX="" ;;
+    *)           echo "Unknown arg: $arg"; exit 1 ;;
+  esac
+done
+
+# ── Install dependencies ──
+echo "Installing dependencies..."
+cd "$SCRIPT_DIR"
+bun install --frozen-lockfile 2>/dev/null || bun install
+
+# ── Build engine binary ──
+echo "Building engine binary..."
+mkdir -p engine/dist
+bun build --compile engine/src/cli.ts --outfile engine/dist/finstack
+git rev-parse HEAD > engine/dist/.version 2>/dev/null || echo "dev" > engine/dist/.version
+echo "  ✓ engine/dist/finstack"
+
+# ── Create data directory ──
+echo "Setting up data directory..."
+mkdir -p "$FINSTACK_DATA"/{journal,patterns,cache}
+
+# Initialize git in data directory if not already
+if [ ! -d "$FINSTACK_DATA/.git" ]; then
+  cd "$FINSTACK_DATA"
+  git init -q
+  git commit --allow-empty -m "init: finstack cognitive memory" -q
+  echo "  ✓ ~/.finstack/ (git initialized)"
+else
+  echo "  ✓ ~/.finstack/ (already exists)"
+fi
+
+# ── Link skills into Claude Code ──
+echo "Linking skills..."
+mkdir -p "$SKILLS_DIR"
+
+# Create the finstack skill root symlink
+ln -snf "$SCRIPT_DIR" "$SKILLS_DIR/finstack"
+echo "  ✓ finstack → $SCRIPT_DIR"
+
+# Link individual skills
+SKILLS=(sense research judge act reflect cascade)
+for skill in "${SKILLS[@]}"; do
+  if [ -f "$SCRIPT_DIR/$skill/SKILL.md" ]; then
+    link_name="${PREFIX}${skill}"
+    ln -snf "finstack/$skill" "$SKILLS_DIR/$link_name"
+    echo "  ✓ $link_name → finstack/$skill"
+  fi
+done
+
+echo ""
+echo "Done. Available skills:"
+for skill in "${SKILLS[@]}"; do
+  echo "  /${PREFIX}${skill}"
+done
+echo ""
+echo "Quick start:"
+echo "  /sense              — morning signal scan"
+echo "  /judge TSLA         — should I buy Tesla?"
+echo "  /cascade 'TSMC cuts capex' — trace chain reactions"
+echo ""
+echo "Data directory: ~/.finstack/"
+echo "Engine binary:  $SCRIPT_DIR/engine/dist/finstack"

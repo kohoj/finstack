@@ -1,0 +1,136 @@
+# finstack
+
+**An operating system for investment thinking.**
+
+One person + AI = a hedge fund's entire research department.
+
+finstack is a skill pack for [Claude Code](https://claude.ai/code) that turns
+your terminal into an institutional-grade investment research workflow. Not a
+data terminal — a thinking partner that argues, traces chain reactions, remembers
+your blind spots, and gets smarter with every decision you make.
+
+## The Loop
+
+```
+/sense → /research → /judge → /act → /reflect
+  ↑                                       │
+  └──────── cognitive feedback ───────────┘
+```
+
+- **`/sense`** — Morning briefing. Scans for signals, filters noise, surfaces only what matters to your portfolio.
+- **`/research`** — Deep dive. Produces research memorandums, not data dumps. Every claim traceable to source.
+- **`/judge`** — Adversarial judgment. Bull builds the case, Bear attacks the weakest assumption with historical evidence. Delivers a verdict with conditional confidence — not fake scores.
+- **`/act`** — Action plan. Position sizing, stop-loss, take-profit, time horizon. Cross-checked against your risk profile and behavioral patterns.
+- **`/reflect`** — Meta-cognition. Reviews past decisions, separates luck from skill, extracts behavioral patterns that shape all future invocations.
+
+### `/cascade` — The Signature Capability
+
+```
+/cascade TSMC cuts capital expenditure
+
+→ Agent 1: Semiconductor equipment chain (ASML, Applied Materials)
+→ Agent 2: Apple supply chain (A-series chip timeline)
+→ Agent 3: AI compute narrative (NVDA, cloud capex thesis)
+→ Agent 4: Samsung competitive response
+
+Synthesis by certainty: first-order → second-order → speculative
+Portfolio exposure: "30% of your holdings are affected"
+Regime signal: "AI capex growth assumption under stress"
+```
+
+One event. Multiple parallel agents tracing causal chains simultaneously.
+The human brain can follow 2-3 links. AI agents can follow N links across
+N chains. This is where AI genuinely surpasses human cognition — not in depth,
+but in systematic breadth.
+
+## Install
+
+Requires [Bun](https://bun.sh) and [Claude Code](https://claude.ai/code).
+
+```bash
+git clone https://github.com/user/finstack.git
+cd finstack
+./setup
+```
+
+That's it. Six skills are now available in Claude Code:
+
+```
+/sense     /research     /judge
+/act       /reflect      /cascade
+```
+
+## How It Works
+
+finstack is a **skill pack** (prompt templates that orchestrate Claude Code)
+backed by a **lightweight engine binary** (`$F`) for data fetching and caching.
+
+```
+finstack/
+├── sense/SKILL.md       # Signal scanning
+├── research/SKILL.md    # Deep research
+├── judge/SKILL.md       # Adversarial judgment
+├── act/SKILL.md         # Action planning
+├── reflect/SKILL.md     # Meta-cognition
+├── cascade/SKILL.md     # Chain reaction tracing
+├── engine/              # Data engine (compiled Bun binary)
+│   └── src/
+│       ├── cli.ts
+│       └── commands/    # quote, financials, scan, regime, portfolio
+└── setup                # One-command install
+```
+
+The engine handles data fetching (Yahoo Finance, free APIs) and caching.
+Everything else — reasoning, adversarial argumentation, pattern recognition,
+cascade tracing — is Claude Code doing what it does best, orchestrated by
+the skill templates.
+
+## Cognitive Memory
+
+finstack maintains a cognitive model of YOU in `~/.finstack/`:
+
+```
+~/.finstack/
+├── journal/          # Every /judge and /act decision, tracked by git
+├── patterns/         # Behavioral patterns (exits tech early, ignores stops)
+├── portfolio.json    # Your current holdings
+├── consensus.json    # Market assumptions you're tracking + stress levels
+└── profile.json      # Risk tolerance, style, blind spots (inferred, not surveyed)
+```
+
+`git log ~/.finstack/journal/` is your investment decision history.
+`git diff` shows how your cognition evolved. Auditable, reversible, free.
+
+The user who uses finstack for a year has a cognitive model no one else
+can replicate. The skills are the interface; the memory is the moat.
+
+## Data Sources
+
+Works out of the box with zero API keys:
+
+```
+Tier 0: WebSearch + WebFetch (free, covers 80% of needs)
+Tier 1: Yahoo Finance, FRED, SEC EDGAR (free APIs)
+Tier 2: Alpha Vantage, Polygon, Tushare (user-supplied keys, coming soon)
+```
+
+## Philosophy
+
+finstack believes:
+
+1. **Adversarial rigor over adversarial theater** — attack specific assumptions, not list generic concerns
+2. **Honest uncertainty** — confidence is a map, not a number
+3. **Breathe, never break the chain** — calm surface, auditable depth
+4. **The closed loop** — every action feeds reflection, every reflection sharpens perception
+5. **Cognitive honesty** — your patterns are guardrails, not judgments
+
+Read [ETHOS.md](ETHOS.md) for the full philosophy.
+
+## Built on
+
+- [Claude Code](https://claude.ai/code) — agent orchestration, 1M context, multi-model routing
+- [gstack](https://github.com/anthropics/gstack) — architectural inspiration and browser engine
+
+## License
+
+MIT

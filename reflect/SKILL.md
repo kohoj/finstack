@@ -44,6 +44,11 @@ Read the decision history:
 3. `~/.finstack/profile.json` — current user profile
 4. `~/.finstack/portfolio.json` — current holdings
 5. `git log --oneline ~/.finstack/journal/` — chronological decision timeline
+6. `$F alpha` — cognitive alpha data (real vs shadow vs benchmark)
+7. `$F thesis history` — thesis accuracy statistics
+8. Read `~/.finstack/shadow.json` — shadow vs real position comparisons
+9. Check obituary queue: read theses.json for dead theses where
+   `obituaryDueDate` has passed — include these in the reflection
 
 If the journal is empty, tell the user: "No decisions to reflect on yet.
 Use /judge and /act first, then come back."
@@ -141,35 +146,38 @@ style, or blind spots, update the profile:
 The reflection should read like a coaching session, not a report card:
 
 ```
-Reflection: March 2026
+Reflection: <Month Year>
 
-Decisions reviewed: 8 judge, 5 act
+═══ Hard Numbers ═══
+Analytical alpha: +$22,400 (your theses beat SPY by 11.2%)
+Execution drag:   -$10,400 (your behavior gave back 5.2%)
+Net alpha:        +$12,000
 
-Overall: Your thesis accuracy was 6/8 (75%) — strong. But your execution
-discipline was 3/5 (60%) — this is where the gains are leaking.
+Thesis accuracy: 7/10 directionally correct
+Execution fidelity: 5/10 followed plan exactly
+Deviation reasons: 3 emotional, 1 thesis-changed, 1 need-cash
 
-What went right:
-  Your ASML thesis in January was textbook — you identified the capex
-  cycle inflection before the market priced it in. Skill, not luck.
+═══ Coaching ═══
+Your analysis is genuinely good — 70% thesis accuracy is above average.
+Your problem is not what you think. It's what you do after you think.
 
-What went wrong:
-  NVDA exit on Feb 12. Your /judge said "hold until Q1 earnings." You
-  sold on a 7% dip. The stock recovered 15% by earnings. This was the
-  early-profit-taking pattern in action.
+The $10,400 execution drag breaks down:
+- $4,200 from exiting early (3x)
+- $2,800 from ignoring stops (2x)
+- $3,400 from incomplete staged entries (2x)
 
-New pattern detected:
-  You've ignored your stop-loss on 3 of 5 positions. When a position
-  hits your stop-loss price, you tend to "wait one more day." In 2 of 3
-  cases, this resulted in further losses. Recommendation: use automatic
-  stop-loss orders.
+Obituary review:
+  [Include obituary analysis for any dead theses past due date.
+   Check if falsification conditions have since un-falsified.
+   Verdict is based on CONDITION STATUS, not price movement.]
 
-Updated cognitive model:
-  - early-profit-taking pattern: confidence upgraded (4 data points now)
-  - NEW: stop-loss avoidance pattern added
-  - risk tolerance: stated "aggressive" but revealed behavior is "moderate"
-
-Your finstack is now calibrated to flag these patterns in future /act plans.
+One thing to change next month:
+  [One specific, actionable recommendation based on the data]
 ```
+
+If alpha data is unavailable (no completed cycles), fall back to the
+qualitative reflection from journal entries alone — but note that
+quantitative tracking improves with more completed decision cycles.
 
 ## Step 5: Deposit
 

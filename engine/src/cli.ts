@@ -5,6 +5,13 @@ import { financials } from './commands/financials';
 import { scan } from './commands/scan';
 import { regime } from './commands/regime';
 import { portfolio } from './commands/portfolio';
+import { keys } from './commands/keys';
+import { macro } from './commands/macro';
+import { filing } from './commands/filing';
+import { history } from './commands/history';
+import { earnings } from './commands/earnings';
+import { alpha } from './commands/alpha';
+import { thesis } from './commands/thesis';
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   quote,
@@ -12,6 +19,13 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   scan,
   regime,
   portfolio,
+  keys,
+  macro,
+  filing,
+  history,
+  earnings,
+  alpha,
+  thesis,
 };
 
 async function main() {
@@ -27,9 +41,16 @@ Commands:
   scan [--source trending|news|all]      Multi-source signal scanning
   regime list|add|update|alerts          Consensus assumption register
   portfolio show|add|remove|init         Portfolio management
+  keys set|list|remove                   API key management
+  macro [series]                         FRED macro indicators
+  filing <ticker>                        SEC EDGAR filings
+  history <ticker> [--from --to]         Historical price data
+  earnings <ticker>                      Earnings history + calendar
+  alpha [--last N]                       Cognitive alpha calculation
+  thesis list|check|kill|history         Thesis lifecycle management
 
 Data: ~/.finstack/
-Cache: ~/.finstack/cache/ (5min quotes, 1hr financials, 15min scans)
+Cache: ~/.finstack/cache/
 `);
     process.exit(command ? 0 : 1);
   }

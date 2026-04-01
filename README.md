@@ -15,6 +15,8 @@ your blind spots, and gets smarter with every decision you make.
 /sense → /research → /judge → /act → /reflect
   ↑                                       │
   └──────── cognitive feedback ───────────┘
+                    ↕
+              /track (audit layer)
 ```
 
 - **`/sense`** — Morning briefing. Scans for signals, filters noise, surfaces only what matters to your portfolio.
@@ -22,6 +24,7 @@ your blind spots, and gets smarter with every decision you make.
 - **`/judge`** — Adversarial judgment. Bull builds the case, Bear attacks the weakest assumption with historical evidence. Delivers a verdict with conditional confidence — not fake scores.
 - **`/act`** — Action plan. Position sizing, stop-loss, take-profit, time horizon. Cross-checked against your risk profile and behavioral patterns.
 - **`/reflect`** — Meta-cognition. Reviews past decisions, separates luck from skill, extracts behavioral patterns that shape all future invocations.
+- **`/track`** — Quantified mirror. Real vs shadow portfolio, thesis lifecycle, cognitive alpha score, behavioral cost in dollars.
 
 ### `/cascade` — The Signature Capability
 
@@ -43,6 +46,41 @@ The human brain can follow 2-3 links. AI agents can follow N links across
 N chains. This is where AI genuinely surpasses human cognition — not in depth,
 but in systematic breadth.
 
+### Cognitive Alpha Engine
+
+finstack maintains a shadow portfolio — a "perfectly disciplined you" that
+follows every /act plan exactly. Stop-losses fire on time. Take-profits
+execute at target. Time horizons are honored.
+
+`/track alpha` compares your real portfolio against the shadow and SPY:
+
+```
+             Return    vs SPY
+  SPY         +8.2%      —
+  Shadow      +19.4%    +11.2%  ← your analytical edge
+  Real        +14.2%    +6.0%   ← what you captured
+
+  Your analysis is worth +$22,400/quarter.
+  Your execution gave back $10,400.
+```
+
+Every dollar of behavioral cost is traced to its source: early exits,
+ignored stops, incomplete staged entries. You see exactly what your
+investment personality is costing you.
+
+### Thesis Falsification
+
+Every `/judge` verdict auto-registers a thesis with falsifiable conditions.
+`/sense` monitors for threats. The thesis lifecycle:
+
+```
+alive → threatened → critical → dead
+     → reinforced (condition passed)
+```
+
+Machine detects threats. Human decides death. Dead theses get an obituary
+review 90 days later — did you kill it too early, or was the call right?
+
 ## Install
 
 Requires [Bun](https://bun.sh) and [Claude Code](https://claude.ai/code).
@@ -53,11 +91,12 @@ cd finstack
 ./setup
 ```
 
-That's it. Six skills are now available in Claude Code:
+That's it. Seven skills are now available in Claude Code:
 
 ```
 /sense     /research     /judge
 /act       /reflect      /cascade
+/track
 ```
 
 ## How It Works
@@ -108,11 +147,17 @@ can replicate. The skills are the interface; the memory is the moat.
 
 Works out of the box with zero API keys:
 
-```
-Tier 0: WebSearch + WebFetch (free, covers 80% of needs)
-Tier 1: Yahoo Finance, FRED, SEC EDGAR (free APIs)
-Tier 2: Alpha Vantage, Polygon, Tushare (user-supplied keys, coming soon)
-```
+| Tier | Source | Data | Key Required |
+|------|--------|------|:---:|
+| 0 | WebSearch + WebFetch | News, analysis, any public page | No |
+| 1 | Yahoo Finance | Quotes, financials, trending | No |
+| 1 | SEC EDGAR | 10-K, 10-Q, 8-K filings | No |
+| 1 | FRED | Rates, CPI, GDP, unemployment, VIX | Free |
+| 2 | Alpha Vantage | Earnings calendar, surprise history | Free |
+| 2 | Polygon | Historical OHLCV, splits, dividends | Free |
+
+Tier 1 covers 90% of needs. Tier 2 adds depth for power users.
+Configure keys: `finstack keys set <provider> <key>`
 
 ## Philosophy
 

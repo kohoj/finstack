@@ -58,6 +58,36 @@ Run these in parallel:
 
 If the engine binary is missing, rely on WebSearch alone.
 
+## Step 1.5: Thesis Threat Scan + Enhanced Data
+
+### Thesis Threat Detection
+
+1. Read `~/.finstack/theses.json` for all alive/threatened theses
+2. For each news item from Step 1 that mentions a ticker in any thesis's
+   `watchTickers`:
+   - Read the thesis's `falsificationTest` (a natural language question)
+   - Evaluate: does this news article answer the falsificationTest
+     affirmatively? In other words, would a reasonable analyst interpret
+     this news as evidence that the thesis condition is being challenged?
+   - If YES (genuine threat): add to the thesis condition's `threats`
+     array in theses.json, update thesis status to `threatened` if
+     currently `alive`
+   - Include in output as a thesis threat alert
+
+3. Do NOT automatically kill any thesis. Only flag threats. The user
+   runs `/judge` to make life/death decisions.
+
+### Enhanced Data Sources
+
+Run in parallel with Step 1:
+- `$F macro` — include macro snapshot (Fed funds rate, CPI, VIX) in
+  the briefing's macro pulse section. Use real numbers, not generalities.
+- For each ticker in portfolio.json (up to top 5 by position size):
+  `$F filing <ticker>` — flag if any new SEC filing in the last 7 days
+
+If FRED key is not configured, skip macro data silently.
+If EDGAR fails for a ticker, skip silently.
+
 ## Step 2: Filter and Rank
 
 This is the hard part — and it's where you earn your keep. Apply these filters:

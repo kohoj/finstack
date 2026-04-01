@@ -207,6 +207,31 @@ After delivering the verdict:
 
 This creates an auditable decision history for `/reflect`.
 
+## Step 6: Thesis Registration
+
+After depositing to journal, automatically register the thesis:
+
+1. Extract conditions from the conditional confidence map in your verdict.
+   Each "if X then Y" becomes a tracked condition.
+2. Determine condition types:
+   - Specific quantitative thresholds (e.g., "Q2 EPS > $1.50") → `earnings` type
+     with metric, operator, threshold, resolveBy date
+   - Event-based conditions (e.g., "no cloud provider cuts capex") → `event` type
+     with a natural language `falsificationTest` and `watchTickers`
+3. Read existing `~/.finstack/theses.json` (create if missing with `{"theses":[]}`)
+4. Append a new thesis object:
+   - `id`: `t` + timestamp
+   - `ticker`: the ticker being judged
+   - `thesis`: one-line summary of the investment thesis
+   - `verdict`: your verdict
+   - `status`: `alive`
+   - `statusHistory`: `[{ date, from: null, to: "alive", reason: "Registered from /judge" }]`
+   - Each condition gets `id`: `c` + counter, `status`: `pending`
+   - For earnings conditions: `metric`, `operator`, `threshold`, `resolveBy`
+   - For event conditions: `falsificationTest` (natural language question Claude can evaluate), `watchTickers`, `threats: []`
+5. Write back to theses.json
+6. Brief confirmation: `Thesis registered: "<thesis>" — N conditions tracked`
+
 ## Natural Flow
 
 After delivering the verdict, the user may say:

@@ -8,6 +8,11 @@ const TTL: Record<string, number> = {
   quote: 5 * 60 * 1000,
   financials: 60 * 60 * 1000,
   scan: 15 * 60 * 1000,
+  macro: 60 * 60 * 1000,
+  filing: 6 * 60 * 60 * 1000,
+  earnings: 6 * 60 * 60 * 1000,
+  history: 60 * 60 * 1000,
+  'history-old': 24 * 60 * 60 * 1000,
 };
 
 export function getCached(key: string, type: string): any | null {

@@ -86,7 +86,7 @@ review 90 days later — did you kill it too early, or was the call right?
 Requires [Bun](https://bun.sh) and [Claude Code](https://claude.ai/code).
 
 ```bash
-git clone https://github.com/user/finstack.git
+git clone https://github.com/kohoj/finstack.git
 cd finstack
 ./setup
 ```
@@ -98,6 +98,55 @@ That's it. Seven skills are now available in Claude Code:
 /act       /reflect      /cascade
 /track
 ```
+
+### Quick Start
+
+```bash
+# Open Claude Code in any directory
+claude
+
+# Morning briefing — what signals matter to your portfolio today?
+/sense
+
+# Deep dive on a ticker
+/research NVDA
+
+# Should I buy? Bull vs Bear adversarial judgment
+/judge NVDA
+
+# Turn the verdict into a concrete action plan
+/act NVDA
+
+# Track a macro event's chain reaction across your holdings
+/cascade TSMC cuts capital expenditure
+
+# How am I doing? Real vs shadow portfolio comparison
+/track
+
+# Reflect on past decisions — separate luck from skill
+/reflect
+```
+
+### Optional: Unlock Tier 2 Data
+
+Free API keys for deeper analysis (register in 30 seconds each):
+
+```bash
+# FRED — macro indicators (rates, CPI, GDP, VIX)
+# Register: https://fred.stlouisfed.org/docs/api/api_key.html
+finstack keys set fred YOUR_KEY
+
+# Alpha Vantage — earnings calendar + surprise history
+# Register: https://www.alphavantage.co/support/#api-key
+finstack keys set alphavantage YOUR_KEY
+
+# Polygon — historical OHLCV, splits, dividends
+# Register: https://polygon.io/dashboard/signup
+finstack keys set polygon YOUR_KEY
+```
+
+Without these keys, finstack works fine — Tier 0 + Tier 1 covers 90%.
+With these keys, `/research`, `/sense`, and `/track` get richer data.
 
 ## How It Works
 
@@ -112,14 +161,18 @@ finstack/
 ├── act/SKILL.md         # Action planning
 ├── reflect/SKILL.md     # Meta-cognition
 ├── cascade/SKILL.md     # Chain reaction tracing
+├── track/SKILL.md       # Quantified mirror (audit layer)
 ├── engine/              # Data engine (compiled Bun binary)
 │   └── src/
 │       ├── cli.ts
-│       └── commands/    # quote, financials, scan, regime, portfolio
+│       ├── commands/    # 12 commands (quote, financials, scan, macro,
+│       │                #   filing, history, earnings, alpha, thesis,
+│       │                #   regime, portfolio, keys)
+│       └── data/        # API clients (Yahoo, FRED, EDGAR, Alpha Vantage, Polygon)
 └── setup                # One-command install
 ```
 
-The engine handles data fetching (Yahoo Finance, free APIs) and caching.
+The engine handles data fetching and caching across 5 data sources.
 Everything else — reasoning, adversarial argumentation, pattern recognition,
 cascade tracing — is Claude Code doing what it does best, orchestrated by
 the skill templates.
@@ -132,9 +185,13 @@ finstack maintains a cognitive model of YOU in `~/.finstack/`:
 ~/.finstack/
 ├── journal/          # Every /judge and /act decision, tracked by git
 ├── patterns/         # Behavioral patterns (exits tech early, ignores stops)
-├── portfolio.json    # Your current holdings
+├── portfolio.json    # Your current holdings + transaction history
+├── shadow.json       # Shadow portfolio (disciplined you)
+├── theses.json       # Active thesis register + falsification conditions
 ├── consensus.json    # Market assumptions you're tracking + stress levels
-└── profile.json      # Risk tolerance, style, blind spots (inferred, not surveyed)
+├── keys.json         # API keys for Tier 2 data sources (0600 permissions)
+├── profile.json      # Risk tolerance, style, blind spots (inferred, not surveyed)
+└── cache/            # TTL-based data cache (auto-managed)
 ```
 
 `git log ~/.finstack/journal/` is your investment decision history.

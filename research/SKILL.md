@@ -57,6 +57,19 @@ Run in parallel, as needed for the scope:
    breakdowns, and footnotes. These are where the real information hides.
 4. **Peer context**: If relevant, run `$F financials` on 2-3 peers for comparison
 5. **Prior research**: Read `~/.finstack/journal/` for any prior work on this ticker
+6. **Macro context**: `$F macro` — current rates, CPI, VIX. Incorporate
+   into the memo where macro conditions materially affect the thesis.
+   Skip if FRED key not configured.
+7. **SEC filings**: `$F filing <ticker>` — check for recent 10-K, 10-Q,
+   8-K filings. If a 10-K or 10-Q was filed in the last 90 days,
+   WebFetch the filing URL and read key sections: Risk Factors,
+   Management Discussion & Analysis (MD&A), and segment breakdowns.
+   These are where the real information hides.
+8. **Earnings history**: `$F earnings <ticker>` — last 8 quarters of
+   earnings surprises. Use in "Key Metrics in Context" to show whether
+   the company consistently beats, meets, or misses estimates. This
+   pattern matters more than any single quarter.
+   Skip if Alpha Vantage key not configured.
 
 For peer comparison, auto-select comparable companies based on sector, size,
 and business model — don't ask the user who the peers are.

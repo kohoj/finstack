@@ -130,6 +130,23 @@ If this is not an isolated case, this assumption may be falsifying.
 
 Update the consensus register if warranted.
 
+### Macro data enrichment
+
+For cascades triggered by macro events (rate changes, trade policy,
+currency moves, employment data):
+
+Run `$F macro` to get current values for relevant FRED series. Use
+real numbers in your chain analysis:
+
+- Instead of "rising rates hurt growth stocks" →
+  "Fed funds rate at 5.25%, up from 4.75% six months ago. At current
+  10Y-2Y spread of -0.15, the yield curve is inverted. This specific
+  rate environment has historically compressed PE multiples for
+  companies with >80% revenue growth expectations."
+
+If FRED key is not configured, use WebSearch for current macro data.
+Always cite specific numbers, not generalities.
+
 ## Step 4: Output
 
 The cascade output should be visually clear — the reader must immediately see

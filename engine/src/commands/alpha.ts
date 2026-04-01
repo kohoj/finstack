@@ -6,11 +6,34 @@ import { loadShadow, type ShadowEntry } from '../data/shadow';
 const FINSTACK_DIR = join(homedir(), '.finstack');
 const PORTFOLIO_FILE = join(FINSTACK_DIR, 'portfolio.json');
 
+interface Position {
+  ticker: string;
+  shares: number;
+  avgCost: number;
+  addedAt: string;
+}
+
+interface Transaction {
+  ticker: string;
+  action: 'buy' | 'sell';
+  shares: number;
+  price: number;
+  date: string;
+  reason: string | null;
+}
+
+interface Portfolio {
+  positions: Position[];
+  transactions: Transaction[];
+  updatedAt: string;
+}
+
 interface PositionAlpha {
   ticker: string;
   realPL: number;
   shadowPL: number;
   behavioralCost: number;
+  estimated?: boolean;
   deviationReason?: string;
 }
 
@@ -68,14 +91,14 @@ export function categorizeDeviation(reason: string | null): string {
   return reason;
 }
 
-function loadPortfolio(): any {
-  if (!existsSync(PORTFOLIO_FILE)) return { positions: [], transactions: [] };
+function loadPortfolio(): Portfolio {
+  if (!existsSync(PORTFOLIO_FILE)) return { positions: [], transactions: [], updatedAt: '' };
   try {
     const data = JSON.parse(readFileSync(PORTFOLIO_FILE, 'utf-8'));
     if (!data.transactions) data.transactions = [];
-    return data;
+    return data as Portfolio;
   } catch {
-    return { positions: [], transactions: [] };
+    return { positions: [], transactions: [], updatedAt: '' };
   }
 }
 
@@ -86,7 +109,7 @@ export async function alpha(args: string[]) {
   const shadow = loadShadow();
 
   const sellTxs = portfolio.transactions
-    .filter((t: any) => t.action === 'sell')
+    .filter((t: Transaction) => t.action === 'sell')
     .slice(-lastN);
 
   if (sellTxs.length === 0) {
@@ -97,28 +120,47 @@ export async function alpha(args: string[]) {
     return;
   }
 
-  const positionAlphas: (PositionAlpha & { deviationReason?: string })[] = [];
+  const positionAlphas: PositionAlpha[] = [];
 
   for (const tx of sellTxs) {
     const buyTx = portfolio.transactions.find(
-      (t: any) => t.action === 'buy' && t.ticker === tx.ticker && t.date < tx.date,
+      (t: Transaction) => t.action === 'buy' && t.ticker === tx.ticker && t.date < tx.date,
     );
     if (!buyTx) continue;
 
+    // Find shadow entry — closed or still open
     const shadowEntry = shadow.entries.find(
-      (e: ShadowEntry) => e.ticker === tx.ticker && e.status === 'closed',
+      (e: ShadowEntry) => e.ticker === tx.ticker,
     );
-    if (!shadowEntry) continue;
+
+    if (!shadowEntry) {
+      // No shadow at all — still include with zero shadow P&L so user sees the gap
+      const pa = calculatePositionAlpha(
+        { ticker: tx.ticker, buyPrice: buyTx.price, sellPrice: tx.price, shares: tx.shares },
+        { ticker: tx.ticker, buyPrice: buyTx.price, sellPrice: buyTx.price, shares: tx.shares },
+      );
+      pa.estimated = true;
+      pa.deviationReason = tx.reason;
+      positionAlphas.push(pa);
+      continue;
+    }
 
     const filledTranches = shadowEntry.stagedPlan.filter(t => t.status === 'filled');
     const shadowBuyPrice = filledTranches.length > 0
       ? filledTranches.reduce((s, t) => s + (t.fillPrice || 0) * t.shares, 0) / filledTranches.reduce((s, t) => s + t.shares, 0)
       : buyTx.price;
 
+    // If shadow is still open, use the real sell price as estimated shadow exit
+    const shadowSellPrice = shadowEntry.status === 'closed'
+      ? (shadowEntry.exitPrice || tx.price)
+      : tx.price;
+    const isEstimated = shadowEntry.status === 'open';
+
     const pa = calculatePositionAlpha(
       { ticker: tx.ticker, buyPrice: buyTx.price, sellPrice: tx.price, shares: tx.shares },
-      { ticker: tx.ticker, buyPrice: shadowBuyPrice, sellPrice: shadowEntry.exitPrice || tx.price, shares: shadowEntry.filledShares },
+      { ticker: tx.ticker, buyPrice: shadowBuyPrice, sellPrice: shadowSellPrice, shares: shadowEntry.filledShares || tx.shares },
     );
+    pa.estimated = isEstimated;
     pa.deviationReason = tx.reason;
     positionAlphas.push(pa);
   }
@@ -126,7 +168,7 @@ export async function alpha(args: string[]) {
   const totalRealPL = positionAlphas.reduce((s, p) => s + p.realPL, 0);
   const totalShadowPL = positionAlphas.reduce((s, p) => s + p.shadowPL, 0);
 
-  const costsByPattern: Record<string, { occurrences: number; totalCost: number; details: any[] }> = {};
+  const costsByPattern: Record<string, { occurrences: number; totalCost: number; details: { ticker: string; cost: number; reason: string | undefined }[] }> = {};
   for (const pa of positionAlphas) {
     if (pa.behavioralCost >= 0) continue;
     const pattern = categorizeDeviation(pa.deviationReason || null);

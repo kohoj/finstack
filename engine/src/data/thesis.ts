@@ -77,8 +77,6 @@ function save(data: ThesesStore, file: string): void {
   writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-let _condCounter = 0;
-
 export function registerThesis(params: {
   ticker: string;
   thesis: string;
@@ -96,9 +94,10 @@ export function registerThesis(params: {
 }, file = DEFAULT_FILE): Thesis {
   const store = loadTheses(file);
   const now = new Date().toISOString();
+  const tsBase = Date.now();
 
-  const conditions: Condition[] = params.conditions.map((c) => {
-    const id = `c${++_condCounter}`;
+  const conditions: Condition[] = params.conditions.map((c, i) => {
+    const id = `c${tsBase}_${i}`;
     if (c.type === 'earnings') {
       return {
         id,

@@ -146,6 +146,41 @@ Next: run /judge TSLA on July 23 after earnings
 Write to `~/.finstack/journal/act-<ticker>-<date>.md`.
 Git commit: `cd ~/.finstack && git add -A && git commit -m "act: <ticker> — <action> <size>"`
 
+## Step 7: Shadow Entry
+
+After depositing to journal, automatically create a shadow portfolio entry:
+
+1. Extract from the action plan: ticker, action, entry price, shares per
+   tranche, stop-loss (price + reason), take-profit (price + reason),
+   time horizon date, and staged entry plan.
+
+2. Entry price: use the current market price from `$F quote <ticker>`
+   (regularMarketPrice field). This simulates a market-on-close order.
+   Do NOT use the "ideal" price from the plan.
+
+3. Read existing `~/.finstack/shadow.json` (create if missing with `{"entries":[]}`)
+
+4. Append a new shadow entry:
+   - `id`: `s` + timestamp
+   - `ticker`, `action`, `entryDate` (today)
+   - `totalShares`: total across all tranches
+   - `stagedPlan`: array of tranches, each with:
+     - `tranche` number, `shares`, `trigger` condition
+     - Tranche 1 (immediate): `status: "filled"`, `fillPrice` = current market price
+     - Subsequent tranches: `status: "pending"`, `triggerPrice`, `fallbackDate` = entry + 30 days
+   - `stopLoss`: `{ price, reason }` from the action plan
+   - `takeProfit`: `{ price, reason }` from the action plan
+   - `timeHorizon`: the plan's target date
+   - `linkedThesis`: thesis ID from theses.json if one exists for this ticker
+   - `sourceJudge`, `sourceAct`: journal filenames
+   - `status`: `open`
+
+5. Write back to shadow.json
+6. For staged entries: fallbackDate = entry date + 30 calendar days.
+   After 30 days, if the trigger hasn't been met, shadow fills at
+   day-30 close price. This is evaluated by /track or /reflect.
+7. Brief confirmation: `Shadow position created: <TICKER> <shares> shares`
+
 ## Important
 
 **Never present an action plan without prior analysis.** If there's no

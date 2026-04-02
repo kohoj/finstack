@@ -12,6 +12,7 @@ import { history } from './commands/history';
 import { earnings } from './commands/earnings';
 import { alpha } from './commands/alpha';
 import { thesis } from './commands/thesis';
+import { risk } from './commands/risk';
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   quote,
@@ -26,6 +27,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   earnings,
   alpha,
   thesis,
+  risk,
 };
 
 async function main() {
@@ -48,6 +50,7 @@ Commands:
   earnings <ticker>                      Earnings history + calendar
   alpha [--last N]                       Cognitive alpha calculation
   thesis list|check|kill|history         Thesis lifecycle management
+  risk [size <ticker> <entry> <stop>]    Portfolio risk + position sizing
 
 Data: ~/.finstack/
 Cache: ~/.finstack/cache/

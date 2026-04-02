@@ -94,6 +94,46 @@ Every action plan must include:
    "This is a 6-month thesis. If the catalyst hasn't played out by January,
    reassess regardless of price."
 
+## Step 3.5: Risk Gate
+
+**Before delivering the plan, run the risk gate. This is mandatory.**
+
+1. Run `$F risk size <TICKER> <entry_price> <stop_price>` using the entry
+   price and stop-loss from Steps 2-3.
+
+2. Read the `riskGate` field in the output. Present it to the user:
+
+   - If `pass: true` with no warnings → proceed silently
+   - If `pass: true` with warnings → show warnings inline:
+     ```
+     ⚠️ RISK NOTE: Top 3 concentration would be 58% (limit: 60%)
+     ```
+   - If `pass: false` → **BLOCK the action plan**:
+     ```
+     ⛔ RISK GATE — BLOCKED
+       Position concentration: NVDA would be 28% of portfolio (limit: 25%)
+       
+     Options:
+       A) Override — "I accept the concentration risk because ___"
+       B) Reduce size — buy [fewer shares] to stay under 25%
+       C) Rebalance — sell $X of [existing position] first
+     ```
+
+3. If the user overrides, record the override reason. It will appear in
+   the transaction log and `/reflect` will surface it.
+
+4. **Position sizing rule**: Always use the fixed-fractional method:
+   ```
+   Risk budget = portfolio × 2% (default, from profile.json)
+   Risk per share = entry price − stop-loss price
+   Max shares = risk budget ÷ risk per share
+   ```
+   Show this calculation explicitly. Never let a single trade risk more
+   than the risk budget unless the user explicitly overrides.
+
+5. Also run `$F risk` (no args) to show the current portfolio risk
+   dashboard. If any existing positions have no stop-loss, flag them.
+
 ## Step 4: Behavioral Pattern Check
 
 Before delivering the plan, check patterns/:

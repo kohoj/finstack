@@ -3,3 +3,4 @@ engine/dist/
 *.log
 .DS_Store
 *.bun-build
+.gstack/

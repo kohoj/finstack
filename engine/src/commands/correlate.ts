@@ -144,6 +144,10 @@ export async function correlate(args: string[]) {
     }
   }
 
+  // Check if we got data
+  const tickersWithData = tickers.filter(t => returnSeries.has(t));
+  const tickersWithout = tickers.filter(t => !returnSeries.has(t));
+
   const { matrix, warnings } = computeCorrelationMatrix(tickers, returnSeries);
 
   console.log(JSON.stringify({
@@ -151,5 +155,9 @@ export async function correlate(args: string[]) {
     tickers,
     matrix,
     highCorrelation: warnings,
+    ...(tickersWithout.length > 0 ? {
+      noData: tickersWithout,
+      note: `${tickersWithout.length} ticker(s) 无法获取历史数据（数据源可能暂时不可用）。配置 Polygon API key 可提高可用性: finstack keys set polygon YOUR_KEY`,
+    } : {}),
   }, null, 2));
 }

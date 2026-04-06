@@ -46,6 +46,18 @@ fi
 [ -x "$F" ] && echo "ENGINE: $F" || echo "ENGINE_MISSING"
 ```
 
+## Learnings Context
+
+Load relevant past learnings before starting:
+
+```
+$F learn search --skill track --limit 3
+```
+
+If learnings are returned, use them as context — they contain past errors,
+workarounds, and insights from previous runs of this skill. Adapt your
+approach based on what was learned before.
+
 ## Step 0: Determine Scope
 
 Parse the user's request:
@@ -172,3 +184,20 @@ After track:
 - **"/reflect"** → full reflection with track data
 - **"/sense"** → check for new signals
 - **"show pattern [name]"** → detail on a behavioral pattern
+
+## Learning Deposit
+
+After completing this skill, reflect on the session:
+
+- Did any data source fail or degrade?
+- Did you encounter unexpected data formats?
+- Did the user correct any of your judgments?
+- Did you discover a useful approach worth remembering?
+
+If anything is worth recording for future sessions, deposit it:
+
+```
+$F learn add "<one-line summary>" --skill track --type <error|workaround|insight>
+```
+
+Only deposit genuinely useful learnings — not routine observations.

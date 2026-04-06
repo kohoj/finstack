@@ -65,7 +65,7 @@ ln -snf "$SCRIPT_DIR" "$SKILLS_DIR/finstack"
 echo "  ✓ finstack → $SCRIPT_DIR"
 
 # Link individual skills
-SKILLS=(sense research judge act reflect cascade track)
+SKILLS=(sense research judge act reflect cascade track screen)
 for skill in "${SKILLS[@]}"; do
   if [ -f "$SCRIPT_DIR/$skill/SKILL.md" ]; then
     link_name="${PREFIX}${skill}"
@@ -108,6 +108,7 @@ echo "Quick start:"
 echo "  /sense              — morning signal scan"
 echo "  /judge TSLA         — should I buy Tesla?"
 echo "  /cascade 'TSMC cuts capex' — trace chain reactions"
+echo "  /screen 'marketCap>50e9 profitMargin>0.2' — find profitable large caps"
 echo ""
 echo "Data directory: ~/.finstack/"
 echo "Engine binary:  $SCRIPT_DIR/engine/dist/finstack"

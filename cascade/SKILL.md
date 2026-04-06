@@ -49,6 +49,18 @@ fi
 [ -x "$F" ] && echo "ENGINE: $F" || echo "ENGINE_MISSING"
 ```
 
+## Learnings Context
+
+Load relevant past learnings before starting:
+
+```
+$F learn search --skill cascade --limit 3
+```
+
+If learnings are returned, use them as context — they contain past errors,
+workarounds, and insights from previous runs of this skill. Adapt your
+approach based on what was learned before.
+
 ## Step 0: Parse the Trigger Event
 
 The user will describe an event:
@@ -203,3 +215,20 @@ After the cascade:
 - **"expand chain 3"** → show full detail on one specific chain
 - **"/sense"** → check if new signals have emerged since
 - **"what if [variation]?"** → re-run with a different scenario
+
+## Learning Deposit
+
+After completing this skill, reflect on the session:
+
+- Did any data source fail or degrade?
+- Did you encounter unexpected data formats?
+- Did the user correct any of your judgments?
+- Did you discover a useful approach worth remembering?
+
+If anything is worth recording for future sessions, deposit it:
+
+```
+$F learn add "<one-line summary>" --skill cascade --type <error|workaround|insight>
+```
+
+Only deposit genuinely useful learnings — not routine observations.

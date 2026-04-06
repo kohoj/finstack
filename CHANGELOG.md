@@ -2,14 +2,23 @@
 
 All notable changes to finstack are documented here.
 
-## [Unreleased]
+## [0.6.0] - 2026-04-07
 
 ### Added
-- HTML report engine with Chart.js charts and Tailwind CSS styling
-- Portfolio correlation matrix with Pearson coefficients
-- Security regression test suite
+- Thesis replay backtest: condition validation, plan adherence, alpha vs SPY
+- Scenario analysis: 6 presets (rate changes, market crashes, recession) + custom factors
+- Periodic review command and `/review` skill for weekly/monthly retrospectives
+- Multi-session awareness: registration, cleanup, concurrent session detection
+- README rewrite reflecting full v0.6.0 feature set
+
+## [0.5.0] - 2026-04-07
+
+### Added
+- HTML report engine with Chart.js charts and Tailwind CSS styling (sense/track/reflect)
+- Portfolio correlation matrix with Pearson coefficients and high-correlation warnings
+- Security regression tests (15 tests: keys, paths, input validation, atomic writes)
+- Documentation freshness check script (`bun run check:docs`)
 - CONTRIBUTING.md and CHANGELOG.md
-- Documentation freshness check script
 
 ## [0.4.0] - 2026-04-07
 

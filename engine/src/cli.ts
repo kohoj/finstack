@@ -15,6 +15,7 @@ import { thesis } from './commands/thesis';
 import { risk } from './commands/risk';
 import { watchlist } from './commands/watchlist';
 import { alerts } from './commands/alerts';
+import { calendar } from './commands/calendar';
 import { formatErrorJSON, FinstackError } from './errors';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -35,6 +36,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   risk,
   watchlist,
   alerts,
+  calendar,
 };
 
 function checkVersion() {
@@ -74,12 +76,13 @@ Commands:
   macro [series]                         FRED macro indicators
   filing <ticker>                        SEC EDGAR filings
   history <ticker> [--from --to]         Historical price data
-  earnings <ticker>                      Earnings history + calendar
+  earnings <ticker> [--upcoming]         Earnings history + upcoming date
   alpha [--last N]                       Cognitive alpha calculation
   thesis list|check|kill|history         Thesis lifecycle management
   risk [size <ticker> <entry> <stop>]    Portfolio risk + position sizing
   watchlist [add|remove|tag|untag]       Watchlist management
   alerts [--due N] [--source S]          Check pending alerts
+  calendar [--range N]                   Upcoming earnings calendar
 
 Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/

@@ -177,6 +177,17 @@ Write output to `~/.finstack/journal/track-<date>.md` (global) or
 
 Git commit: `cd ~/.finstack && git add -A && git commit -m "track: <scope> — <key finding>"`
 
+## Step 3.5: Generate Visual Report
+
+After depositing, generate an HTML report for visual review:
+
+```
+$F report track --no-open
+```
+
+Tell the user: "Visual report generated. Open ~/.finstack/reports/track-<date>.html
+in your browser for charts and allocation visualization."
+
 ## Natural Flow
 
 After track:

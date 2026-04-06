@@ -208,12 +208,26 @@ Third-order (speculative):
 Write to `~/.finstack/journal/cascade-<event-slug>-<date>.md`.
 Git commit: `cd ~/.finstack && git add -A && git commit -m "cascade: <event> — <N> chains, <key finding>"`
 
+## Step 5.5: Scenario Impact (if portfolio exists)
+
+If the cascade event maps to a known scenario type, run scenario analysis:
+
+- Rate-related events → `$F scenario rates+100bp` or `rates-100bp`
+- Broad market risk → `$F scenario spy-20pct`
+- Energy/oil events → `$F scenario oil+30pct`
+- Recession signals → `$F scenario recession`
+
+Show the portfolio impact estimate alongside the cascade findings to give
+the user both qualitative (chain analysis) and quantitative (dollar impact)
+perspectives.
+
 ## Natural Flow
 
 After the cascade:
 - **"/judge [ticker]"** → deep-dive the most affected name
 - **"expand chain 3"** → show full detail on one specific chain
 - **"/sense"** → check if new signals have emerged since
+- **"/scenario [name]"** → quantify portfolio impact
 - **"what if [variation]?"** → re-run with a different scenario
 
 ## Learning Deposit

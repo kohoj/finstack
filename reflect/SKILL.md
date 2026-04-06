@@ -75,6 +75,10 @@ Read the decision history:
 8. Read `~/.finstack/shadow.json` — shadow vs real position comparisons
 9. Check obituary queue: read theses.json for dead theses where
    `obituaryDueDate` has passed — include these in the reflection
+10. `$F backtest` — thesis replay results for closed theses (return,
+    alpha, condition accuracy, plan adherence)
+11. `$F correlate` — current portfolio correlation to spot hidden
+    concentration risks
 
 If the journal is empty, tell the user: "No decisions to reflect on yet.
 Use /judge and /act first, then come back."

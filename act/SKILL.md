@@ -160,6 +160,19 @@ Every action plan must include:
 5. Also run `$F risk` (no args) to show the current portfolio risk
    dashboard. If any existing positions have no stop-loss, flag them.
 
+## Step 3.7: Correlation Check
+
+Run `$F correlate` to check if the new position is highly correlated with
+existing holdings. If the ticker correlates > 0.8 with any current position:
+
+```
+⚠️ CORRELATION WARNING: NVDA ↔ AMD correlation = 0.87
+They tend to move together — this increases concentration risk
+beyond what the position size alone suggests.
+```
+
+If portfolio has < 2 positions, skip this step.
+
 ## Step 4: Behavioral Pattern Check
 
 Before delivering the plan, check patterns/:

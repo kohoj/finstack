@@ -10,7 +10,16 @@ export async function learn(args: string[]) {
 
   switch (sub) {
     case 'add': {
-      const summary = args.slice(1).filter(a => !a.startsWith('--')).join(' ');
+      // Filter out --flag and their values
+      const flagValues = new Set<string>();
+      for (let i = 1; i < args.length; i++) {
+        if (args[i].startsWith('--') && i + 1 < args.length) {
+          flagValues.add(args[i]);
+          flagValues.add(args[i + 1]);
+          i++; // skip value
+        }
+      }
+      const summary = args.slice(1).filter(a => !flagValues.has(a)).join(' ');
       if (!summary) {
         console.error(JSON.stringify({ error: 'Usage: finstack learn add <summary> [--skill <name>] [--type <error|workaround|insight>]' }));
         process.exit(1);

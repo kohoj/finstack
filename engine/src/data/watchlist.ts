@@ -1,5 +1,5 @@
 import { WATCHLIST_FILE } from '../paths';
-import { atomicWriteJSON, readJSONSafe } from '../fs';
+import { atomicWriteJSON, readJSONSafe, withFileLock } from '../fs';
 
 export interface WatchlistAlert {
   type: 'price' | 'earnings' | 'date';
@@ -41,27 +41,29 @@ export function addToWatchlist(
   linkedThesis: string | null = null,
 ): WatchlistEntry {
   const normalized = validateTicker(ticker);
-  const list = loadWatchlist(file);
-  const existing = list.find(e => e.ticker === normalized);
+  return withFileLock(file, () => {
+    const list = loadWatchlist(file);
+    const existing = list.find(e => e.ticker === normalized);
 
-  if (existing) {
-    existing.reason = reason;
-    if (linkedThesis) existing.linkedThesis = linkedThesis;
+    if (existing) {
+      existing.reason = reason;
+      if (linkedThesis) existing.linkedThesis = linkedThesis;
+      atomicWriteJSON(file, list);
+      return existing;
+    }
+
+    const entry: WatchlistEntry = {
+      ticker: normalized,
+      addedAt: new Date().toISOString(),
+      reason,
+      tags: [],
+      linkedThesis,
+      alerts: [],
+    };
+    list.push(entry);
     atomicWriteJSON(file, list);
-    return existing;
-  }
-
-  const entry: WatchlistEntry = {
-    ticker: normalized,
-    addedAt: new Date().toISOString(),
-    reason,
-    tags: [],
-    linkedThesis,
-    alerts: [],
-  };
-  list.push(entry);
-  atomicWriteJSON(file, list);
-  return entry;
+    return entry;
+  });
 }
 
 export function removeFromWatchlist(ticker: string, file = WATCHLIST_FILE): void {

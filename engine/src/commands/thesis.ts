@@ -89,6 +89,11 @@ export async function thesis(args: string[]) {
         console.error(JSON.stringify({ error: 'Usage: finstack thesis kill <id> <reason>' }));
         process.exit(1);
       }
+      const store = loadTheses();
+      if (!store.theses.find(t => t.id === id)) {
+        console.error(JSON.stringify({ error: `Thesis ${id} not found` }));
+        process.exit(1);
+      }
       killThesisData(id, reason);
       console.log(JSON.stringify({ message: `Thesis ${id} killed: ${reason}` }));
       break;

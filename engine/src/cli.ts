@@ -19,6 +19,7 @@ import { calendar } from './commands/calendar';
 import { screen } from './commands/screen';
 import { learn } from './commands/learn';
 import { report } from './commands/report';
+import { reviewCmd } from './commands/review-cmd';
 import { formatErrorJSON, FinstackError } from './errors';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -43,6 +44,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   screen,
   learn,
   report,
+  review: reviewCmd,
 };
 
 function checkVersion() {
@@ -92,6 +94,7 @@ Commands:
   screen "<filters>" [--preset P]        Stock screener with filter syntax
   learn add|search|recent                Operational learnings management
   report sense|track|reflect [--no-open] Generate HTML visual reports
+  review [--period P] [--from F --to T]  Periodic investment review
 
 Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/

@@ -4,3 +4,4 @@ engine/dist/
 .DS_Store
 *.bun-build
 .gstack/
+docs/superpowers/

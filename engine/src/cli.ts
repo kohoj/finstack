@@ -16,6 +16,8 @@ import { risk } from './commands/risk';
 import { watchlist } from './commands/watchlist';
 import { alerts } from './commands/alerts';
 import { calendar } from './commands/calendar';
+import { screen } from './commands/screen';
+import { learn } from './commands/learn';
 import { formatErrorJSON, FinstackError } from './errors';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -37,6 +39,8 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   watchlist,
   alerts,
   calendar,
+  screen,
+  learn,
 };
 
 function checkVersion() {
@@ -83,6 +87,8 @@ Commands:
   watchlist [add|remove|tag|untag]       Watchlist management
   alerts [--due N] [--source S]          Check pending alerts
   calendar [--range N]                   Upcoming earnings calendar
+  screen "<filters>" [--preset P]        Stock screener with filter syntax
+  learn add|search|recent                Operational learnings management
 
 Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/

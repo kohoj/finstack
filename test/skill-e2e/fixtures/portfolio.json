@@ -1,0 +1,11 @@
+{
+  "positions": [
+    { "ticker": "NVDA", "shares": 50, "avgCost": 850, "addedAt": "2026-01-15T00:00:00Z" },
+    { "ticker": "AAPL", "shares": 100, "avgCost": 230, "addedAt": "2026-02-01T00:00:00Z" }
+  ],
+  "transactions": [
+    { "ticker": "NVDA", "action": "buy", "shares": 50, "price": 850, "date": "2026-01-15T00:00:00Z", "reason": null },
+    { "ticker": "AAPL", "action": "buy", "shares": 100, "price": 230, "date": "2026-02-01T00:00:00Z", "reason": null }
+  ],
+  "updatedAt": "2026-02-01T00:00:00Z"
+}

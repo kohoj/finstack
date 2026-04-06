@@ -8,6 +8,7 @@
     "dev": "bun run engine/src/cli.ts",
     "test": "bun test",
     "test:gate": "bun test && bun run check:docs",
+    "test:e2e": "EVALS=1 bun test test/skill-e2e/",
     "check:docs": "bun run scripts/check-docs.ts"
   },
   "bin": {

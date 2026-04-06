@@ -1,0 +1,31 @@
+{
+  "theses": [
+    {
+      "id": "t_test1",
+      "ticker": "NVDA",
+      "thesis": "AI infrastructure capex continues to grow through 2026",
+      "verdict": "buy",
+      "conditions": [
+        {
+          "id": "c_test1",
+          "description": "Data center revenue > $30B in FY2027",
+          "type": "earnings",
+          "metric": "revenue",
+          "operator": ">",
+          "threshold": 30000000000,
+          "resolveBy": "2027-03-01",
+          "status": "pending",
+          "actualValue": null,
+          "resolvedAt": null
+        }
+      ],
+      "status": "alive",
+      "statusHistory": [
+        { "date": "2026-01-15T00:00:00Z", "from": null, "to": "alive", "reason": "Registered from /judge" }
+      ],
+      "createdAt": "2026-01-15T00:00:00Z",
+      "lastChecked": "2026-04-01T00:00:00Z",
+      "obituaryDueDate": null
+    }
+  ]
+}

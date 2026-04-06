@@ -1,0 +1,4 @@
+[
+  { "ticker": "AMD", "addedAt": "2026-03-01T00:00:00Z", "reason": "Potential competitor play", "tags": ["semiconductor"], "linkedThesis": null, "alerts": [] },
+  { "ticker": "TSLA", "addedAt": "2026-03-15T00:00:00Z", "reason": "FSD regulatory watch", "tags": ["ev", "ai"], "linkedThesis": null, "alerts": [] }
+]

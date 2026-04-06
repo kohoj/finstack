@@ -41,6 +41,17 @@ fi
 [ -x "$F" ] && echo "ENGINE: $F" || echo "ENGINE_MISSING"
 ```
 
+## Learnings Context
+
+Load relevant past learnings before starting:
+
+```
+$F learn search --skill screen --limit 3
+```
+
+If learnings are returned, use them as context — they contain past errors,
+workarounds, and insights from previous runs of this skill.
+
 ## Step 0: Understand the Request
 
 The user may ask in natural language:
@@ -89,3 +100,19 @@ Suggest next steps:
 
 If the user found the screen useful, offer to add interesting tickers to watchlist:
 "Want to add any of these to your watchlist? `/watchlist add [ticker]`"
+
+## Learning Deposit
+
+After completing this skill, reflect on the session:
+
+- Did any data source fail or degrade?
+- Were screening results surprising or empty?
+- Did the user refine filters in a useful way?
+
+If anything is worth recording for future sessions, deposit it:
+
+```
+$F learn add "<one-line summary>" --skill screen --type <error|workaround|insight>
+```
+
+Only deposit genuinely useful learnings — not routine observations.

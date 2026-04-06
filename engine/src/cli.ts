@@ -13,6 +13,7 @@ import { earnings } from './commands/earnings';
 import { alpha } from './commands/alpha';
 import { thesis } from './commands/thesis';
 import { risk } from './commands/risk';
+import { watchlist } from './commands/watchlist';
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   quote,
@@ -28,6 +29,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   alpha,
   thesis,
   risk,
+  watchlist,
 };
 
 async function main() {
@@ -51,6 +53,7 @@ Commands:
   alpha [--last N]                       Cognitive alpha calculation
   thesis list|check|kill|history         Thesis lifecycle management
   risk [size <ticker> <entry> <stop>]    Portfolio risk + position sizing
+  watchlist show|add|remove|tag|untag    Watchlist management with tagging
 
 Data: ~/.finstack/
 Cache: ~/.finstack/cache/

@@ -49,6 +49,18 @@ fi
 [ -x "$F" ] && echo "ENGINE: $F" || echo "ENGINE_MISSING"
 ```
 
+## Learnings Context
+
+Load relevant past learnings before starting:
+
+```
+$F learn search --skill research --limit 3
+```
+
+If learnings are returned, use them as context — they contain past errors,
+workarounds, and insights from previous runs of this skill. Adapt your
+approach based on what was learned before.
+
 ## Step 0: Understand the Question
 
 The user may ask:
@@ -154,3 +166,20 @@ After delivering the memo:
 - **"compare with [peer]"** → add a peer comparison section
 - **"read this filing"** → incorporate a specific document
 - **"what about [aspect]?"** → expand a section
+
+## Learning Deposit
+
+After completing this skill, reflect on the session:
+
+- Did any data source fail or degrade?
+- Did you encounter unexpected data formats?
+- Did the user correct any of your judgments?
+- Did you discover a useful approach worth remembering?
+
+If anything is worth recording for future sessions, deposit it:
+
+```
+$F learn add "<one-line summary>" --skill research --type <error|workaround|insight>
+```
+
+Only deposit genuinely useful learnings — not routine observations.

@@ -53,6 +53,18 @@ fi
 If the engine binary is missing, you can still proceed — use WebSearch and
 WebFetch for data gathering instead of `$F` commands.
 
+## Learnings Context
+
+Load relevant past learnings before starting:
+
+```
+$F learn search --skill judge --limit 3
+```
+
+If learnings are returned, use them as context — they contain past errors,
+workarounds, and insights from previous runs of this skill. Adapt your
+approach based on what was learned before.
+
 ## Step 0: Silent Context Gathering
 
 Before deploying any agents, quietly gather everything you need. Do these
@@ -255,3 +267,20 @@ After delivering the verdict, the user may say:
 - **"/cascade [event]"** → trace chain reaction of a related event
 - **"I disagree because..."** → record the divergence, update journal
 - **"revisit"** → re-run /judge with fresh data
+
+## Learning Deposit
+
+After completing this skill, reflect on the session:
+
+- Did any data source fail or degrade?
+- Did you encounter unexpected data formats?
+- Did the user correct any of your judgments?
+- Did you discover a useful approach worth remembering?
+
+If anything is worth recording for future sessions, deposit it:
+
+```
+$F learn add "<one-line summary>" --skill judge --type <error|workaround|insight>
+```
+
+Only deposit genuinely useful learnings — not routine observations.

@@ -2,54 +2,63 @@
 
 All notable changes to finstack are documented here.
 
-## [0.6.0] - 2026-04-07
+## [0.6.0] — 2026-04-07
 
-### Added
-- Thesis replay backtest: condition validation, plan adherence, alpha vs SPY
-- Scenario analysis: 6 presets (rate changes, market crashes, recession) + custom factors
-- Periodic review command and `/review` skill for weekly/monthly retrospectives
-- Multi-session awareness: registration, cleanup, concurrent session detection
-- README rewrite reflecting full v0.6.0 feature set
+The "one-person research department" release. finstack goes from a prototype
+with good ideas to a reliable, daily-use investment operating system.
 
-## [0.5.0] - 2026-04-07
+### What's New
 
-### Added
-- HTML report engine with Chart.js charts and Tailwind CSS styling (sense/track/reflect)
-- Portfolio correlation matrix with Pearson coefficients and high-correlation warnings
-- Security regression tests (15 tests: keys, paths, input validation, atomic writes)
-- Documentation freshness check script (`bun run check:docs`)
-- CONTRIBUTING.md and CHANGELOG.md
+**Discover opportunities, don't just analyze known ones.**
+- `/screen` — filter S&P 500 + NASDAQ 100 by any financial metric. Presets for growth, value, and dividend strategies. Natural language works too.
+- `finstack calendar` — see upcoming earnings dates for your entire portfolio and watchlist in one view.
+- `finstack watchlist` — track tickers you're watching but haven't bought. Tags, alerts, thesis linking.
 
-## [0.4.0] - 2026-04-07
+**Think bigger about risk.**
+- `finstack scenario` — "what if rates rise 100bp?" or "what if the market drops 20%?" Six presets plus custom factor support. Sector-level estimates, not guesswork.
+- `finstack correlate` — Pearson correlation matrix across your holdings. Warns when positions are too correlated (>0.8).
+- `finstack backtest` — replay closed theses against actual prices. Were your conditions right? Did you follow the plan?
 
-### Added
-- Stock screener (`/screen`): filter S&P 500 + NASDAQ 100 by financial metrics
-- Screening presets: growth, value, dividend
-- Earnings calendar: aggregate upcoming earnings for portfolio + watchlist
-- `earnings --upcoming` flag for single ticker lookup
-- Operational learnings system: JSONL storage, skill load/deposit lifecycle
-- ARCHITECTURE.md: comprehensive design decisions document
-- `/screen` skill for natural language stock screening
+**See your data.**
+- `finstack report` — generates standalone HTML reports with Chart.js charts and dark-mode Tailwind styling. Portfolio allocation pies, thesis status bars, performance timelines. Opens in your browser.
 
-## [0.3.0] - 2026-04-07
+**Review and learn.**
+- `/review` — weekly or monthly retrospective. Aggregates decisions, thesis outcomes, and behavioral patterns into a narrative.
+- Operational learnings — every skill now loads past learnings at startup and deposits new ones at the end. finstack gets smarter with each session.
 
-### Added
-- Network reliability layer: timeouts, exponential backoff retries
-- Atomic writes: all JSON state files crash-safe via tmp+rename
-- Actionable errors: every error includes diagnostic suggestion
-- Data source fallback chains: Yahoo → Polygon/FMP → stale cache
-- Yahoo Finance hardening: crumb TTL, UA rotation, auto-recovery
-- FINSTACK_HOME environment variable for configurable data directory
-- Cache versioning: format changes auto-invalidate old entries
-- Watchlist management: add/remove/tag/untag with ticker validation
-- Alert aggregation: watchlist dates + thesis deadlines
-- `/sense` integration with watchlist and alerts
-- Financial Modeling Prep (FMP) as Tier 1 data source
-- Version detection and auto-rebuild system
-- Team mode with SessionStart hook for auto-updates
-- Config system (`~/.finstack/config.yaml`)
+**Daily workflow.**
+- `/sense` now integrates watchlist, alerts, and earnings calendar into the morning briefing.
+- `/act` checks portfolio correlation before recommending a position.
+- `/cascade` suggests scenario analysis after tracing chain reactions.
+- `/reflect` pulls backtest results and correlation data into the review.
 
-## [0.2.0] - 2026-04-07
+### Under the Hood
+
+**Reliability.** Every HTTP request has a 10-second timeout and exponential backoff retry. Every JSON state file uses atomic writes (tmp + rename). Data source fallback chains: Yahoo → Polygon/FMP → stale cache → actionable error message. You'll never see a silent failure.
+
+**Engineering discipline.** 179 unit and security tests. GitHub Actions CI. Documentation freshness checks (`bun run check:docs`). Three-tier test strategy: `bun test` (fast), `test:gate` (+ docs), `test:e2e` (full skill tests via Claude API). ARCHITECTURE.md, CONTRIBUTING.md, and this changelog.
+
+**Version management.** Engine binary auto-rebuilds when source code is newer. Remote version checks (cached, non-blocking). Team mode (`./setup --team`) for background auto-updates.
+
+**Input validation.** Ticker format enforcement, path traversal prevention, file-level mutex for concurrent writes. Dogfooded and hardened across 11 rounds of edge-case testing.
+
+### Data Sources
+
+| Tier | Source | Key Required |
+|------|--------|:---:|
+| 0 | Yahoo Finance, SEC EDGAR, WebSearch | No |
+| 1 | FRED, Alpha Vantage, Polygon, FMP | Free |
+
+### Numbers
+
+- 9 skills, 25 engine commands, 7 data sources
+- 179 tests, 0 failures
+- 4,400 lines of TypeScript, 2,200 lines of tests
+- Works with zero configuration. Deeper analysis unlocked by free API keys.
+
+---
+
+## [0.2.0] — 2026-04-07
 
 ### Added
 - Cognitive Alpha Engine (shadow portfolio + alpha calculation)
@@ -57,23 +66,11 @@ All notable changes to finstack are documented here.
 - `/track` audit layer
 - Risk gate with concentration limits and position sizing
 - Portfolio risk dashboard
-- Portfolio transaction log with deviation tracking
-- `/judge` auto-registers theses on verdict
-- `/act` auto-creates shadow portfolio entries
-- `/sense` thesis threat detection
-- FRED macro data integration
-- SEC EDGAR filing integration
-- Alpha Vantage earnings data integration
-- Polygon historical price data integration
 
-## [0.1.0] - Initial Release
+## [0.1.0] — Initial Release
 
 ### Added
 - 7 core skills: /sense, /research, /judge, /act, /cascade, /track, /reflect
 - Engine data layer: Yahoo Finance, FRED, SEC EDGAR, Alpha Vantage, Polygon
-- Thesis condition system (earnings + event conditions)
 - Shadow portfolio mechanism
 - TTL-based cache system
-- API key management
-- Portfolio CRUD operations
-- Quote and financials commands

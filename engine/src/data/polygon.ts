@@ -1,4 +1,5 @@
 import { getKey } from './keys';
+import { fetchWithRetry } from '../net';
 
 const BASE = 'https://api.polygon.io';
 
@@ -42,7 +43,7 @@ export async function fetchBars(
   if (!apiKey) throw new Error('Polygon API key not configured. Run: finstack keys set polygon <your-key>');
 
   const url = `${BASE}/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/${multiplier}/${timespan}/${from}/${to}?adjusted=true&sort=asc&apiKey=${apiKey}`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`Polygon ${res.status}: ${await res.text().catch(() => '')}`);
   const data = await res.json();
 

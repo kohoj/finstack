@@ -1,3 +1,5 @@
+import { fetchWithRetry } from '../net';
+
 const SUBMISSIONS_BASE = 'https://data.sec.gov/submissions/CIK';
 const TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
 const ARCHIVES_BASE = 'https://www.sec.gov/Archives/edgar/data';
@@ -54,7 +56,7 @@ export function parseFilings(ticker: string, data: any): FilingResult {
 
 async function resolveCIK(ticker: string): Promise<string> {
   if (!_tickerMap) {
-    const res = await fetch(TICKERS_URL, { headers: { 'User-Agent': UA } });
+    const res = await fetchWithRetry(TICKERS_URL, { headers: { 'User-Agent': UA } });
     if (!res.ok) throw new Error(`SEC ticker lookup failed: ${res.status}`);
     const data = await res.json();
     _tickerMap = {};
@@ -70,7 +72,7 @@ async function resolveCIK(ticker: string): Promise<string> {
 export async function fetchFilings(ticker: string): Promise<FilingResult> {
   const cik = await resolveCIK(ticker);
   const url = `${SUBMISSIONS_BASE}${padCIK(cik)}.json`;
-  const res = await fetch(url, { headers: { 'User-Agent': UA } });
+  const res = await fetchWithRetry(url, { headers: { 'User-Agent': UA } });
   if (!res.ok) throw new Error(`SEC EDGAR ${res.status}: ${await res.text().catch(() => '')}`);
   const data = await res.json();
   return parseFilings(ticker, data);

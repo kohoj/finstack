@@ -1,9 +1,10 @@
 import { fetchWithRetry } from '../net';
+import { FinstackError } from '../errors';
 
 const SUBMISSIONS_BASE = 'https://data.sec.gov/submissions/CIK';
 const TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
 const ARCHIVES_BASE = 'https://www.sec.gov/Archives/edgar/data';
-const UA = 'finstack/0.2.0 (github.com/user/finstack)';
+const UA = 'finstack/0.6.0 (github.com/kohoj/finstack; finstack@users.noreply.github.com)';
 const FORM_FILTER = new Set(['10-K', '10-Q', '8-K']);
 
 export interface Filing {
@@ -56,8 +57,13 @@ export function parseFilings(ticker: string, data: any): FilingResult {
 
 async function resolveCIK(ticker: string): Promise<string> {
   if (!_tickerMap) {
-    const res = await fetchWithRetry(TICKERS_URL, { headers: { 'User-Agent': UA } });
-    if (!res.ok) throw new Error(`SEC ticker lookup failed: ${res.status}`);
+    const res = await fetchWithRetry(TICKERS_URL, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
+    if (!res.ok) throw new FinstackError(
+      `SEC EDGAR 无法访问 (${res.status})`,
+      'edgar',
+      res.status === 403 ? 'SEC 可能限制了当前地区/IP 的访问' : `HTTP ${res.status}`,
+      'SEC EDGAR 在部分地区不可用。/research 和 /judge 仍可通过 WebSearch 获取 SEC 文件内容',
+    );
     const data = await res.json();
     _tickerMap = {};
     for (const entry of Object.values(data) as any[]) {
@@ -72,8 +78,13 @@ async function resolveCIK(ticker: string): Promise<string> {
 export async function fetchFilings(ticker: string): Promise<FilingResult> {
   const cik = await resolveCIK(ticker);
   const url = `${SUBMISSIONS_BASE}${padCIK(cik)}.json`;
-  const res = await fetchWithRetry(url, { headers: { 'User-Agent': UA } });
-  if (!res.ok) throw new Error(`SEC EDGAR ${res.status}: ${await res.text().catch(() => '')}`);
+  const res = await fetchWithRetry(url, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
+  if (!res.ok) throw new FinstackError(
+    `SEC EDGAR 获取 ${ticker} 文件失败 (${res.status})`,
+    'edgar',
+    res.status === 403 ? 'SEC 可能限制了当前地区/IP 的访问' : `HTTP ${res.status}`,
+    '使用 WebSearch 搜索 "SEC EDGAR [ticker] 10-K" 替代',
+  );
   const data = await res.json();
   return parseFilings(ticker, data);
 }

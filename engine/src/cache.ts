@@ -24,12 +24,12 @@ function cacheFile(key: string): string {
 function formatAge(cachedAt: number): string {
   const diffMs = Date.now() - cachedAt;
   const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return '刚刚';
-  if (mins < 60) return `${mins} 分钟前`;
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} 小时前`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days} 天前`;
+  return `${days}d ago`;
 }
 
 export function getCached(key: string, type: string): any | null {

@@ -45,10 +45,10 @@ export async function earnings(args: string[]) {
         return;
       }
       throw new FinstackError(
-        `无法获取 ${ticker} 下次财报日期`,
+        `Cannot fetch upcoming earnings for ${ticker}`,
         'yahoo',
         e.message,
-        '稍后重试',
+        'Retry later',
       );
     }
     return;
@@ -73,7 +73,7 @@ export async function earnings(args: string[]) {
       return;
     }
     throw new FinstackError(
-      `无法获取 ${ticker} earnings 数据`,
+      `Cannot fetch earnings data for ${ticker}`,
       'alphavantage',
       e.message,
       'finstack keys set alphavantage YOUR_KEY',

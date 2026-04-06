@@ -29,11 +29,11 @@ describe('watchlist', () => {
   });
 
   it('adds a ticker with reason', () => {
-    addToWatchlist('NVDA', '等Q2财报', WATCHLIST_FILE);
+    addToWatchlist('NVDA', 'waiting for Q2 earnings', WATCHLIST_FILE);
     const list = loadWatchlist(WATCHLIST_FILE);
     expect(list).toHaveLength(1);
     expect(list[0].ticker).toBe('NVDA');
-    expect(list[0].reason).toBe('等Q2财报');
+    expect(list[0].reason).toBe('waiting for Q2 earnings');
     expect(list[0].tags).toEqual([]);
     expect(list[0].alerts).toEqual([]);
   });

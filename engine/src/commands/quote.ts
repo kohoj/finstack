@@ -57,9 +57,9 @@ export async function quote(args: string[]) {
   }
 
   throw new FinstackError(
-    `无法获取 ${ticker} 报价`,
+    `Cannot fetch quote for ${ticker}`,
     'yahoo',
-    '所有数据源均不可用',
-    '稍后重试，或配置备选数据源: finstack keys set polygon YOUR_KEY',
+    'All data sources unavailable',
+    'Retry later, or configure an alternative: finstack keys set polygon YOUR_KEY',
   );
 }

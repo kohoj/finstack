@@ -95,9 +95,9 @@ export async function history(args: string[]) {
   }
 
   throw new FinstackError(
-    `无法获取 ${ticker} 历史数据`,
+    `Cannot fetch history for ${ticker}`,
     'yahoo',
-    'Yahoo 和 Polygon 均不可用',
+    'Yahoo and Polygon both unavailable',
     'finstack keys set polygon YOUR_KEY',
   );
 }

@@ -15,32 +15,32 @@ interface ScenarioConfig {
 export const SCENARIOS: Record<string, ScenarioConfig> = {
   'rates+100bp': {
     name: 'rates+100bp',
-    description: '利率上升 100 基点',
+    description: 'Interest rates +100bp',
     factors: { SPY: -0.08, TLT: -0.15, GLD: 0.05, XLF: 0.03, XLU: -0.05, XLK: -0.10 },
   },
   'rates-100bp': {
     name: 'rates-100bp',
-    description: '利率下降 100 基点',
+    description: 'Interest rates -100bp',
     factors: { SPY: 0.05, TLT: 0.12, GLD: -0.03, XLF: -0.02, XLU: 0.04, XLK: 0.08 },
   },
   'spy-20pct': {
     name: 'spy-20pct',
-    description: '市场下跌 20%',
+    description: 'Market crash -20%',
     factors: { SPY: -0.20 },
   },
   'spy+20pct': {
     name: 'spy+20pct',
-    description: '市场上涨 20%',
+    description: 'Market rally +20%',
     factors: { SPY: 0.20 },
   },
   'oil+30pct': {
     name: 'oil+30pct',
-    description: '油价上涨 30%',
+    description: 'Oil price +30%',
     factors: { USO: 0.30, XLE: 0.15, SPY: -0.03 },
   },
   'recession': {
     name: 'recession',
-    description: '经济衰退',
+    description: 'Recession',
     factors: { SPY: -0.30, TLT: 0.20, GLD: 0.15, XLU: 0.05, XLC: -0.25, XLK: -0.20 },
   },
 };

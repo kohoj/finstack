@@ -157,7 +157,7 @@ export async function correlate(args: string[]) {
     highCorrelation: warnings,
     ...(tickersWithout.length > 0 ? {
       noData: tickersWithout,
-      note: `${tickersWithout.length} ticker(s) 无法获取历史数据（数据源可能暂时不可用）。配置 Polygon API key 可提高可用性: finstack keys set polygon YOUR_KEY`,
+      note: `${tickersWithout.length} ticker(s) missing price data (data sources may be temporarily unavailable). Configure Polygon for better availability: finstack keys set polygon YOUR_KEY`,
     } : {}),
   }, null, 2));
 }

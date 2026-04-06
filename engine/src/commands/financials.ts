@@ -53,9 +53,9 @@ export async function financials(args: string[]) {
   }
 
   throw new FinstackError(
-    `无法获取 ${ticker} 财务数据`,
+    `Cannot fetch financials for ${ticker}`,
     'yahoo',
-    '所有数据源均不可用',
-    '稍后重试，或配置 FMP: finstack keys set fmp YOUR_KEY',
+    'All data sources unavailable',
+    'Retry later, or configure FMP: finstack keys set fmp YOUR_KEY',
   );
 }

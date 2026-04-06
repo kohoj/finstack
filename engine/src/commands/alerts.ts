@@ -103,7 +103,7 @@ export function aggregateAlerts(opts: {
             type: 'obituary_due',
             date: thesis.obituaryDueDate,
             daysUntil: days,
-            description: `论文"${thesis.thesis.slice(0, 40)}"复盘到期`,
+            description: `Thesis "${thesis.thesis.slice(0, 40)}" obituary review due`,
             urgency: urgencyOf(days),
           });
         }
@@ -122,7 +122,7 @@ export function aggregateAlerts(opts: {
                 type: 'condition_resolveBy',
                 date: cond.resolveBy,
                 daysUntil: days,
-                description: `论文条件"${cond.description.slice(0, 40)}"即将到验证日`,
+                description: `Condition "${cond.description.slice(0, 40)}" approaching resolve date`,
                 urgency: urgencyOf(days),
               });
             }

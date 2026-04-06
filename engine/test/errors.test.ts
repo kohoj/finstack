@@ -4,36 +4,36 @@ import { FinstackError, formatErrorJSON } from '../src/errors';
 describe('FinstackError', () => {
   it('extends Error with actionable fields', () => {
     const err = new FinstackError(
-      '无法获取 NVDA 报价',
+      'Cannot fetch NVDA quote',
       'yahoo',
       'HTTP 403',
-      '稍后重试，或配置 Polygon: finstack keys set polygon YOUR_KEY',
+      'Retry later, or configure Polygon: finstack keys set polygon YOUR_KEY',
     );
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe('无法获取 NVDA 报价');
+    expect(err.message).toBe('Cannot fetch NVDA quote');
     expect(err.source).toBe('yahoo');
     expect(err.reason).toBe('HTTP 403');
-    expect(err.suggestion).toBe('稍后重试，或配置 Polygon: finstack keys set polygon YOUR_KEY');
+    expect(err.suggestion).toBe('Retry later, or configure Polygon: finstack keys set polygon YOUR_KEY');
     expect(err.cached).toBeUndefined();
   });
 
   it('supports cached data attachment', () => {
-    const err = new FinstackError('无法获取报价', 'yahoo');
-    err.cached = { data: { price: 850 }, age: '47 分钟前' };
+    const err = new FinstackError('Cannot fetch quote', 'yahoo');
+    err.cached = { data: { price: 850 }, age: '47m ago' };
     expect(err.cached.data).toEqual({ price: 850 });
-    expect(err.cached.age).toBe('47 分钟前');
+    expect(err.cached.age).toBe('47m ago');
   });
 });
 
 describe('formatErrorJSON', () => {
   it('formats FinstackError to structured JSON', () => {
-    const err = new FinstackError('无法获取报价', 'yahoo', 'HTTP 403', '配置 API key');
+    const err = new FinstackError('Cannot fetch quote', 'yahoo', 'HTTP 403', 'Configure API key');
     const json = formatErrorJSON(err);
     const parsed = JSON.parse(json);
-    expect(parsed.error).toBe('无法获取报价');
+    expect(parsed.error).toBe('Cannot fetch quote');
     expect(parsed.source).toBe('yahoo');
     expect(parsed.reason).toBe('HTTP 403');
-    expect(parsed.suggestion).toBe('配置 API key');
+    expect(parsed.suggestion).toBe('Configure API key');
   });
 
   it('formats regular Error to basic JSON', () => {

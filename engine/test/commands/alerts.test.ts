@@ -61,7 +61,7 @@ describe('aggregateAlerts', () => {
       reason: 'test',
       tags: [],
       linkedThesis: null,
-      alerts: [{ type: 'date', date: tomorrow, note: '财报日', triggered: false }],
+      alerts: [{ type: 'date', date: tomorrow, note: 'earnings date', triggered: false }],
     }]);
 
     const result = aggregateAlerts({

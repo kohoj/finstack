@@ -59,10 +59,10 @@ async function resolveCIK(ticker: string): Promise<string> {
   if (!_tickerMap) {
     const res = await fetchWithRetry(TICKERS_URL, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
     if (!res.ok) throw new FinstackError(
-      `SEC EDGAR 无法访问 (${res.status})`,
+      `SEC EDGAR unavailable (${res.status})`,
       'edgar',
-      res.status === 403 ? 'SEC 可能限制了当前地区/IP 的访问' : `HTTP ${res.status}`,
-      'SEC EDGAR 在部分地区不可用。/research 和 /judge 仍可通过 WebSearch 获取 SEC 文件内容',
+      res.status === 403 ? 'SEC may be restricting access from this region/IP' : `HTTP ${res.status}`,
+      'SEC EDGAR is unavailable in some regions. Use WebSearch for SEC filings instead',
     );
     const data = await res.json();
     _tickerMap = {};
@@ -80,10 +80,10 @@ export async function fetchFilings(ticker: string): Promise<FilingResult> {
   const url = `${SUBMISSIONS_BASE}${padCIK(cik)}.json`;
   const res = await fetchWithRetry(url, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
   if (!res.ok) throw new FinstackError(
-    `SEC EDGAR 获取 ${ticker} 文件失败 (${res.status})`,
+    `SEC EDGAR failed for ${ticker} (${res.status})`,
     'edgar',
-    res.status === 403 ? 'SEC 可能限制了当前地区/IP 的访问' : `HTTP ${res.status}`,
-    '使用 WebSearch 搜索 "SEC EDGAR [ticker] 10-K" 替代',
+    res.status === 403 ? 'SEC may be restricting access from this region/IP' : `HTTP ${res.status}`,
+    'Use WebSearch to find SEC filings: search "SEC EDGAR [ticker] 10-K"',
   );
   const data = await res.json();
   return parseFilings(ticker, data);

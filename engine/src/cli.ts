@@ -66,7 +66,7 @@ function checkVersion() {
     const currentHash = execSync('git rev-parse HEAD', { cwd: srcDir, encoding: 'utf-8' }).trim();
 
     if (builtHash !== currentHash) {
-      console.error(`⚠ engine binary 版本过旧 (built: ${builtHash.slice(0, 7)}, current: ${currentHash.slice(0, 7)})，请运行: bun run build`);
+      console.error(`warning: engine binary outdated (built: ${builtHash.slice(0, 7)}, current: ${currentHash.slice(0, 7)}). Run: bun run build`);
     }
   } catch {
     // Version check is best-effort, never block

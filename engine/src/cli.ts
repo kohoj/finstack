@@ -18,6 +18,7 @@ import { alerts } from './commands/alerts';
 import { calendar } from './commands/calendar';
 import { screen } from './commands/screen';
 import { learn } from './commands/learn';
+import { report } from './commands/report';
 import { formatErrorJSON, FinstackError } from './errors';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -41,6 +42,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   calendar,
   screen,
   learn,
+  report,
 };
 
 function checkVersion() {
@@ -89,6 +91,7 @@ Commands:
   calendar [--range N]                   Upcoming earnings calendar
   screen "<filters>" [--preset P]        Stock screener with filter syntax
   learn add|search|recent                Operational learnings management
+  report sense|track|reflect [--no-open] Generate HTML visual reports
 
 Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/

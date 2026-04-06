@@ -1,7 +1,8 @@
 import { fetchChart } from '../data/yahoo';
 import { fetchBars } from '../data/polygon';
 import { getKey } from '../data/keys';
-import { getCached, setCache } from '../cache';
+import { getCached, getCachedWithFallback, setCache } from '../cache';
+import { FinstackError } from '../errors';
 
 function parseArgs(args: string[]): { ticker: string; from: string; to: string } {
   const ticker = args[0]?.toUpperCase();
@@ -86,5 +87,17 @@ export async function history(args: string[]) {
     return;
   }
 
-  throw new Error(`Could not fetch history for ${ticker}. Yahoo failed and Polygon key not configured.`);
+  // Fallback to stale cache
+  const stale = getCachedWithFallback(cacheKey, cacheType);
+  if (stale) {
+    console.log(JSON.stringify({ ...stale.data, _stale: true, _cacheAge: stale.age }, null, 2));
+    return;
+  }
+
+  throw new FinstackError(
+    `无法获取 ${ticker} 历史数据`,
+    'yahoo',
+    'Yahoo 和 Polygon 均不可用',
+    'finstack keys set polygon YOUR_KEY',
+  );
 }

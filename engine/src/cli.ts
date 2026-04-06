@@ -20,6 +20,9 @@ import { screen } from './commands/screen';
 import { learn } from './commands/learn';
 import { report } from './commands/report';
 import { reviewCmd } from './commands/review-cmd';
+import { backtest } from './commands/backtest';
+import { correlate } from './commands/correlate';
+import { scenario } from './commands/scenario';
 import { formatErrorJSON, FinstackError } from './errors';
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -45,6 +48,9 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   learn,
   report,
   review: reviewCmd,
+  backtest,
+  correlate,
+  scenario,
 };
 
 function checkVersion() {
@@ -95,6 +101,9 @@ Commands:
   learn add|search|recent                Operational learnings management
   report sense|track|reflect [--no-open] Generate HTML visual reports
   review [--period P] [--from F --to T]  Periodic investment review
+  backtest [--thesis ID] [--period N]    Thesis replay backtest
+  correlate [--period N]                 Portfolio correlation matrix
+  scenario <name|custom>                 Scenario analysis
 
 Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/

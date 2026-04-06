@@ -65,7 +65,7 @@ ln -snf "$SCRIPT_DIR" "$SKILLS_DIR/finstack"
 echo "  ✓ finstack → $SCRIPT_DIR"
 
 # Link individual skills
-SKILLS=(sense research judge act reflect cascade track screen)
+SKILLS=(sense research judge act reflect cascade track screen review)
 for skill in "${SKILLS[@]}"; do
   if [ -f "$SCRIPT_DIR/$skill/SKILL.md" ]; then
     link_name="${PREFIX}${skill}"

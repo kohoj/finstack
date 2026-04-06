@@ -1,5 +1,6 @@
 import { fetchTrending, fetchSearch } from '../data/yahoo';
 import { getCached, setCache } from '../cache';
+import { FinstackError } from '../errors';
 
 export async function scan(args: string[]) {
   const source = args.includes('--source') ? args[args.indexOf('--source') + 1] : 'all';

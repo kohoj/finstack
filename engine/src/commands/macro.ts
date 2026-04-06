@@ -1,5 +1,6 @@
 import { fetchSeries, fetchMultiple, CORE_SERIES } from '../data/fred';
 import { getCached, setCache } from '../cache';
+import { FinstackError } from '../errors';
 
 export async function macro(args: string[]) {
   const seriesId = args[0]?.toUpperCase();

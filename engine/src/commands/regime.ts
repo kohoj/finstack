@@ -1,5 +1,6 @@
 import { CONSENSUS_FILE } from '../paths';
 import { atomicWriteJSON, readJSONSafe } from '../fs';
+import { FinstackError } from '../errors';
 
 interface Assumption {
   id: string;
@@ -62,8 +63,7 @@ export async function regime(args: string[]) {
       const assumptions = load();
       const item = assumptions.find(a => a.id === id);
       if (!item) {
-        console.error(JSON.stringify({ error: `Assumption ${id} not found` }));
-        process.exit(1);
+        throw new FinstackError(`Assumption ${id} not found`);
       }
       const prevConfidence = item.confidence;
       item.confidence = Math.max(0, Math.min(10, confidence));
@@ -88,7 +88,6 @@ export async function regime(args: string[]) {
     }
 
     default:
-      console.error(JSON.stringify({ error: `Unknown subcommand: ${sub}. Use list|add|update|alerts` }));
-      process.exit(1);
+      throw new FinstackError(`Unknown subcommand: ${sub}`, undefined, undefined, 'Use list|add|update|alerts');
   }
 }

@@ -1,5 +1,6 @@
 import { fetchFilings } from '../data/edgar';
 import { getCached, setCache } from '../cache';
+import { FinstackError } from '../errors';
 
 export async function filing(args: string[]) {
   const ticker = args[0]?.toUpperCase();

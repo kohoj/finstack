@@ -5,6 +5,7 @@ import {
   tagTicker,
   untagTicker,
 } from '../data/watchlist';
+import { FinstackError } from '../errors';
 
 function parseFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -70,7 +71,6 @@ export async function watchlist(args: string[]) {
     }
 
     default:
-      console.error(JSON.stringify({ error: `Unknown subcommand: ${sub}. Use show|add|remove|tag|untag` }));
-      process.exit(1);
+      throw new FinstackError(`Unknown subcommand: ${sub}`, undefined, undefined, 'Use show|add|remove|tag|untag');
   }
 }

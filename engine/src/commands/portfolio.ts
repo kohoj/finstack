@@ -1,5 +1,6 @@
 import { PORTFOLIO_FILE, SHADOW_FILE } from '../paths';
 import { atomicWriteJSON, readJSONSafe } from '../fs';
+import { FinstackError } from '../errors';
 
 interface Position {
   ticker: string;
@@ -152,7 +153,6 @@ export async function portfolio(args: string[]) {
     }
 
     default:
-      console.error(JSON.stringify({ error: `Unknown subcommand: ${sub}. Use show|add|remove|init` }));
-      process.exit(1);
+      throw new FinstackError(`Unknown subcommand: ${sub}`, undefined, undefined, 'Use show|add|remove|init');
   }
 }

@@ -41,7 +41,7 @@ echo "  ✓ engine/dist/finstack"
 
 # ── Create data directory ──
 echo "Setting up data directory..."
-mkdir -p "$FINSTACK_DATA"/{journal,patterns,cache}
+mkdir -p "$FINSTACK_DATA"/{journal,patterns,cache,reports,sessions}
 
 # Initialize git in data directory if not already
 if [ ! -d "$FINSTACK_DATA/.git" ]; then

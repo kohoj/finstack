@@ -14,6 +14,10 @@ import { alpha } from './commands/alpha';
 import { thesis } from './commands/thesis';
 import { risk } from './commands/risk';
 import { watchlist } from './commands/watchlist';
+import { alerts } from './commands/alerts';
+import { formatErrorJSON, FinstackError } from './errors';
+import { existsSync, readFileSync } from 'fs';
+import { join, dirname } from 'path';
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   quote,
@@ -30,7 +34,28 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   thesis,
   risk,
   watchlist,
+  alerts,
 };
+
+function checkVersion() {
+  try {
+    const distDir = dirname(process.argv[0] || __dirname);
+    const versionFile = join(distDir, '.version');
+    if (!existsSync(versionFile)) return;
+    const builtHash = readFileSync(versionFile, 'utf-8').trim();
+    if (builtHash === 'dev') return;
+
+    const { execSync } = require('child_process');
+    const srcDir = join(distDir, '..', '..');
+    const currentHash = execSync('git rev-parse HEAD', { cwd: srcDir, encoding: 'utf-8' }).trim();
+
+    if (builtHash !== currentHash) {
+      console.error(`⚠ engine binary 版本过旧 (built: ${builtHash.slice(0, 7)}, current: ${currentHash.slice(0, 7)})，请运行: bun run build`);
+    }
+  } catch {
+    // Version check is best-effort, never block
+  }
+}
 
 async function main() {
   const command = process.argv[2];
@@ -53,24 +78,34 @@ Commands:
   alpha [--last N]                       Cognitive alpha calculation
   thesis list|check|kill|history         Thesis lifecycle management
   risk [size <ticker> <entry> <stop>]    Portfolio risk + position sizing
-  watchlist show|add|remove|tag|untag    Watchlist management with tagging
+  watchlist [add|remove|tag|untag]       Watchlist management
+  alerts [--due N] [--source S]          Check pending alerts
 
-Data: ~/.finstack/
+Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/
 `);
     process.exit(command ? 0 : 1);
   }
 
+  checkVersion();
+
   const fn = commands[command];
   if (!fn) {
-    console.error(JSON.stringify({ error: `Unknown command: ${command}. Run 'finstack help' for usage.` }));
+    console.error(formatErrorJSON(
+      new FinstackError(
+        `Unknown command: ${command}`,
+        undefined,
+        undefined,
+        `Run 'finstack help' for available commands`,
+      )
+    ));
     process.exit(1);
   }
 
   try {
     await fn(args);
   } catch (e: any) {
-    console.error(JSON.stringify({ error: e.message }));
+    console.error(formatErrorJSON(e));
     process.exit(1);
   }
 }

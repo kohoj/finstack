@@ -42,6 +42,10 @@ Read these in parallel before scanning:
    If "tends to overreact to macro headlines," downweight macro noise.
 3. `~/.finstack/consensus.json` — which assumptions are under stress?
    Signals that challenge stressed assumptions are high-priority.
+4. `$F watchlist` — what are they watching but haven't bought?
+   Signals about watchlist tickers matter almost as much as held positions.
+5. `$F alerts --due 7` — any upcoming deadlines?
+   Thesis conditions, obituary reviews, watchlist date alerts.
 
 If none of these files exist, proceed without personalization — but note
 to the user that `/sense` improves with use.
@@ -51,9 +55,9 @@ to the user that `/sense` improves with use.
 Run these in parallel:
 
 1. **Engine scan**: `$F scan --source all` for trending tickers and news
-2. **Portfolio-specific**: For each ticker in portfolio.json, WebSearch for
-   "[TICKER] news today" — but only if the portfolio has ≤10 positions.
-   For larger portfolios, scan the top 5 by position size.
+2. **Portfolio + Watchlist**: For each ticker in portfolio.json AND watchlist,
+   WebSearch for "[TICKER] news today" — but only if the combined count is ≤15.
+   For larger lists, scan portfolio top 5 + watchlist top 5 by most recently added.
 3. **Macro pulse**: WebSearch for "market today federal reserve economy"
 
 If the engine binary is missing, rely on WebSearch alone.
@@ -87,6 +91,19 @@ Run in parallel with Step 1:
 
 If FRED key is not configured, skip macro data silently.
 If EDGAR fails for a ticker, skip silently.
+
+## Step 1.7: Alerts Integration
+
+Check the alerts output from Step 0. For each alert:
+
+- **overdue**: Promote to 🔴 urgency. Something needed your attention and was missed.
+- **today**: Promote to 🔴 urgency. Time-sensitive action needed.
+- **soon** (1-3 days): Promote to 🟡 urgency.
+- **upcoming** (4-7 days): Include in "Future Key Dates" section.
+
+If a watchlist ticker has a price alert, check by comparing
+`$F quote <ticker>` price against alert conditions. If triggered, mark as 🔴 and
+suggest `/judge <ticker>`.
 
 ## Step 2: Filter and Rank
 
@@ -135,6 +152,9 @@ Example:
 🟢 Fed minutes suggest one rate cut in September, not two.
    Your portfolio has no significant rate sensitivity. Background only.
    → No action needed
+
+未来 7 天关键日期
+  [From alerts: earnings dates, thesis conditions, watchlist reminders]
 ```
 
 If there are zero noteworthy signals, say so: "Nothing worth your attention

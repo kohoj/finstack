@@ -71,13 +71,14 @@ export function removeFromWatchlist(ticker: string, file = WATCHLIST_FILE): void
   atomicWriteJSON(file, filtered);
 }
 
-export function tagTicker(ticker: string, tag: string, file = WATCHLIST_FILE): void {
+export function tagTicker(ticker: string, tag: string, file = WATCHLIST_FILE): boolean {
   const normalized = validateTicker(ticker);
   const list = loadWatchlist(file);
   const entry = list.find(e => e.ticker === normalized);
-  if (!entry) return;
+  if (!entry) return false;
   if (!entry.tags.includes(tag)) entry.tags.push(tag);
   atomicWriteJSON(file, list);
+  return true;
 }
 
 export function untagTicker(ticker: string, tag: string, file = WATCHLIST_FILE): void {

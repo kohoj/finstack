@@ -152,6 +152,14 @@ export async function risk(args: string[]) {
     }
     const entry = parseFloat(entryStr);
     const stop = parseFloat(stopStr);
+    if (entry <= 0 || stop <= 0) {
+      console.error(JSON.stringify({ error: 'Prices must be positive' }));
+      process.exit(1);
+    }
+    if (stop >= entry) {
+      console.error(JSON.stringify({ error: `Stop price ($${stop}) must be below entry price ($${entry}) for a long position` }));
+      process.exit(1);
+    }
     const portfolio = loadPortfolio();
     const profile = loadProfile();
     const portfolioValue = portfolio.positions.reduce((s, p) => s + p.shares * p.avgCost, 0);

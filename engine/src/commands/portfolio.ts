@@ -67,6 +67,14 @@ export async function portfolio(args: string[]) {
         console.error(JSON.stringify({ error: 'Usage: finstack portfolio add <ticker> <shares> <avgCost>' }));
         process.exit(1);
       }
+      if (shares <= 0) {
+        console.error(JSON.stringify({ error: 'Shares must be positive' }));
+        process.exit(1);
+      }
+      if (avgCost <= 0) {
+        console.error(JSON.stringify({ error: 'Average cost must be positive' }));
+        process.exit(1);
+      }
       const p = load();
       const existing = p.positions.find(pos => pos.ticker === ticker);
       if (existing) {

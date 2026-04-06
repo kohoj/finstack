@@ -53,7 +53,11 @@ export async function watchlist(args: string[]) {
         console.error(JSON.stringify({ error: 'Usage: finstack watchlist tag <ticker> <tag>' }));
         process.exit(1);
       }
-      tagTicker(ticker, tag);
+      const tagged = tagTicker(ticker, tag);
+      if (!tagged) {
+        console.error(JSON.stringify({ error: `${ticker.toUpperCase()} is not in your watchlist. Add it first: finstack watchlist add ${ticker.toUpperCase()}` }));
+        process.exit(1);
+      }
       console.log(JSON.stringify({ message: `Tagged ${ticker.toUpperCase()} with "${tag}"` }));
       break;
     }

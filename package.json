@@ -7,6 +7,7 @@
     "build": "bun build --compile engine/src/cli.ts --outfile engine/dist/finstack && git rev-parse HEAD > engine/dist/.version 2>/dev/null || true",
     "dev": "bun run engine/src/cli.ts",
     "test": "bun test",
+    "test:gate": "bun test && bun run check:docs",
     "check:docs": "bun run scripts/check-docs.ts"
   },
   "bin": {

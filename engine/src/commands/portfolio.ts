@@ -1,10 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
-
-const FINSTACK_DIR = join(homedir(), '.finstack');
-const PORTFOLIO_FILE = join(FINSTACK_DIR, 'portfolio.json');
-const SHADOW_FILE = join(FINSTACK_DIR, 'shadow.json');
+import { PORTFOLIO_FILE, SHADOW_FILE } from '../paths';
+import { atomicWriteJSON, readJSONSafe } from '../fs';
 
 interface Position {
   ticker: string;
@@ -30,29 +25,22 @@ interface Portfolio {
 }
 
 function load(): Portfolio {
-  if (!existsSync(PORTFOLIO_FILE)) return { positions: [], transactions: [], updatedAt: new Date().toISOString() };
-  try {
-    const data = JSON.parse(readFileSync(PORTFOLIO_FILE, 'utf-8'));
-    if (!data.transactions) data.transactions = [];
-    return data;
-  } catch {
-    return { positions: [], transactions: [], updatedAt: new Date().toISOString() };
-  }
+  const data = readJSONSafe<Portfolio>(PORTFOLIO_FILE, {
+    positions: [],
+    transactions: [],
+    updatedAt: new Date().toISOString()
+  });
+  if (!data.transactions) data.transactions = [];
+  return data;
 }
 
 function save(data: Portfolio) {
-  mkdirSync(FINSTACK_DIR, { recursive: true });
   data.updatedAt = new Date().toISOString();
-  writeFileSync(PORTFOLIO_FILE, JSON.stringify(data, null, 2));
+  atomicWriteJSON(PORTFOLIO_FILE, data);
 }
 
 function loadShadow(): any {
-  if (!existsSync(SHADOW_FILE)) return { entries: [] };
-  try {
-    return JSON.parse(readFileSync(SHADOW_FILE, 'utf-8'));
-  } catch {
-    return { entries: [] };
-  }
+  return readJSONSafe(SHADOW_FILE, { entries: [] });
 }
 
 function parseFlag(args: string[], flag: string): string | undefined {

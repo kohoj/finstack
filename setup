@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # finstack — one-command install
-# Usage: ./setup [--no-prefix | --prefix]
+# Usage: ./setup [--no-prefix | --prefix] [--team | --no-team]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
@@ -19,10 +19,13 @@ fi
 
 # ── Parse args ──
 PREFIX=""
+TEAM_MODE=""
 for arg in "$@"; do
   case "$arg" in
     --prefix)    PREFIX="finstack-" ;;
     --no-prefix) PREFIX="" ;;
+    --team)      TEAM_MODE="enable" ;;
+    --no-team)   TEAM_MODE="disable" ;;
     *)           echo "Unknown arg: $arg"; exit 1 ;;
   esac
 done
@@ -41,7 +44,7 @@ echo "  ✓ engine/dist/finstack"
 
 # ── Create data directory ──
 echo "Setting up data directory..."
-mkdir -p "$FINSTACK_DATA"/{journal,patterns,cache}
+mkdir -p "$FINSTACK_DATA"/{journal,patterns,cache,reports,sessions}
 
 # Initialize git in data directory if not already
 if [ ! -d "$FINSTACK_DATA/.git" ]; then
@@ -70,6 +73,30 @@ for skill in "${SKILLS[@]}"; do
     echo "  ✓ $link_name → finstack/$skill"
   fi
 done
+
+# ── Write installed version marker ──
+cp "$SCRIPT_DIR/VERSION" "$FINSTACK_DATA/.installed-version" 2>/dev/null || true
+
+# ── Initialize config if missing ──
+if [ ! -f "$FINSTACK_DATA/config.yaml" ]; then
+  cat > "$FINSTACK_DATA/config.yaml" <<'YAML'
+auto_upgrade: false
+update_check: true
+YAML
+  echo "  ✓ config.yaml (created)"
+fi
+
+# ── Team mode ──
+if [ "$TEAM_MODE" = "enable" ]; then
+  "$SCRIPT_DIR/bin/finstack-config" set auto_upgrade true
+  "$SCRIPT_DIR/bin/finstack-config" set update_check true
+  echo "  ✓ Team mode enabled (auto-update on session start)"
+  echo "    Register the SessionStart hook in Claude Code settings:"
+  echo "    claude hooks add SessionStart '$SCRIPT_DIR/bin/finstack-session-update'"
+elif [ "$TEAM_MODE" = "disable" ]; then
+  "$SCRIPT_DIR/bin/finstack-config" set auto_upgrade false
+  echo "  ✓ Team mode disabled"
+fi
 
 echo ""
 echo "Done. Available skills:"

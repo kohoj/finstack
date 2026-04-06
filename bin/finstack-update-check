@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# finstack-update-check — detect remote version updates
+# Output: UPGRADE_AVAILABLE <old> <new> | JUST_UPGRADED <from> <to> | (empty=up to date)
+set -euo pipefail
+
+FINSTACK_DIR="${FINSTACK_HOME:-$HOME/.finstack}"
+SK_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_VER=$(cat "$SK_DIR/VERSION" 2>/dev/null || echo "unknown")
+
+# Check just-upgraded marker (one-time display)
+MARKER="$FINSTACK_DIR/just-upgraded-from"
+if [ -f "$MARKER" ]; then
+  OLD=$(cat "$MARKER")
+  rm -f "$MARKER"
+  echo "JUST_UPGRADED $OLD $LOCAL_VER"
+  exit 0
+fi
+
+# Respect user config
+CONFIG="$FINSTACK_DIR/config.yaml"
+if [ -f "$CONFIG" ]; then
+  UPDATE_CHECK=$(grep -E '^update_check:' "$CONFIG" 2>/dev/null | awk '{print $2}')
+  [ "$UPDATE_CHECK" = "false" ] && exit 0
+fi
+
+# Cache check (60-minute TTL)
+CACHE="$FINSTACK_DIR/last-update-check"
+if [ -f "$CACHE" ]; then
+  CACHED_VER=$(head -1 "$CACHE" 2>/dev/null || echo "")
+  if [ -z "$(find "$CACHE" -mmin +60 2>/dev/null)" ] && [ "$CACHED_VER" = "$LOCAL_VER" ]; then
+    exit 0
+  fi
+fi
+
+# Remote check (5s timeout, fail silently)
+REMOTE_VER=$(curl -sf --max-time 5 "https://raw.githubusercontent.com/kohoj/finstack/master/VERSION" 2>/dev/null || true)
+[ -z "$REMOTE_VER" ] && exit 0
+REMOTE_VER=$(echo "$REMOTE_VER" | tr -d '[:space:]')
+
+# Write cache
+mkdir -p "$FINSTACK_DIR"
+echo "$LOCAL_VER" > "$CACHE"
+
+# Compare
+if [ "$REMOTE_VER" != "$LOCAL_VER" ]; then
+  echo "UPGRADE_AVAILABLE $LOCAL_VER $REMOTE_VER"
+fi

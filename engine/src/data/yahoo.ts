@@ -1,44 +1,73 @@
+import { fetchWithRetry } from '../net';
+
 const BASE = 'https://query1.finance.yahoo.com';
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
+
+const USER_AGENTS = [
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/119.0.0.0',
+];
+
+function randomUA(): string {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
 
 let _crumb: string | null = null;
 let _cookie: string | null = null;
+let _crumbExpiry = 0;
+const CRUMB_TTL = 30 * 60 * 1000;
+
+function clearCrumb(): void {
+  _crumb = null;
+  _cookie = null;
+  _crumbExpiry = 0;
+}
 
 async function getCrumb(): Promise<{ crumb: string; cookie: string }> {
-  if (_crumb && _cookie) return { crumb: _crumb, cookie: _cookie };
-
-  // Step 1: Get consent cookie
-  const consentRes = await fetch('https://fc.yahoo.com', {
-    headers: { 'User-Agent': UA },
+  if (_crumb && _cookie && Date.now() < _crumbExpiry) {
+    return { crumb: _crumb, cookie: _cookie };
+  }
+  clearCrumb();
+  const ua = randomUA();
+  const consentRes = await fetchWithRetry('https://fc.yahoo.com', {
+    headers: { 'User-Agent': ua },
     redirect: 'manual',
-  });
+  }, { retries: 1, backoffMs: [500], timeoutMs: 8000 });
   const setCookies = consentRes.headers.getSetCookie?.() || [];
   const cookies = setCookies.map(c => c.split(';')[0]).join('; ');
-
-  // Step 2: Get crumb
-  const crumbRes = await fetch(`${BASE}/v1/test/getcrumb`, {
-    headers: { 'User-Agent': UA, 'Cookie': cookies },
-  });
+  const crumbRes = await fetchWithRetry(`${BASE}/v1/test/getcrumb`, {
+    headers: { 'User-Agent': ua, 'Cookie': cookies },
+  }, { retries: 1, backoffMs: [500], timeoutMs: 8000 });
   if (!crumbRes.ok) throw new Error(`Failed to get Yahoo crumb: ${crumbRes.status}`);
   const crumb = await crumbRes.text();
-
   _crumb = crumb;
   _cookie = cookies;
+  _crumbExpiry = Date.now() + CRUMB_TTL;
   return { crumb, cookie: cookies };
 }
 
 async function yf(path: string, needsCrumb = false): Promise<any> {
-  let headers: Record<string, string> = { 'User-Agent': UA };
+  const ua = randomUA();
+  let headers: Record<string, string> = { 'User-Agent': ua };
   let url = `${BASE}${path}`;
-
   if (needsCrumb) {
-    const { crumb, cookie } = await getCrumb();
-    url += (url.includes('?') ? '&' : '?') + `crumb=${encodeURIComponent(crumb)}`;
-    headers['Cookie'] = cookie;
+    try {
+      const { crumb, cookie } = await getCrumb();
+      url += (url.includes('?') ? '&' : '?') + `crumb=${encodeURIComponent(crumb)}`;
+      headers['Cookie'] = cookie;
+    } catch {
+      clearCrumb();
+      const { crumb, cookie } = await getCrumb();
+      url = `${BASE}${path}`;
+      url += (url.includes('?') ? '&' : '?') + `crumb=${encodeURIComponent(crumb)}`;
+      headers['Cookie'] = cookie;
+    }
   }
-
-  const res = await fetch(url, { headers });
+  const res = await fetchWithRetry(url, { headers }, {
+    retries: 2, backoffMs: [1000, 3000], timeoutMs: 10_000,
+  });
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) clearCrumb();
     const text = await res.text().catch(() => '');
     throw new Error(`Yahoo Finance ${res.status}: ${text.slice(0, 200)}`);
   }

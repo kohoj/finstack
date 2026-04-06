@@ -1,9 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
-
-const FINSTACK_DIR = join(homedir(), '.finstack');
-const CONSENSUS_FILE = join(FINSTACK_DIR, 'consensus.json');
+import { CONSENSUS_FILE } from '../paths';
+import { atomicWriteJSON, readJSONSafe } from '../fs';
 
 interface Assumption {
   id: string;
@@ -16,17 +12,11 @@ interface Assumption {
 }
 
 function load(): Assumption[] {
-  if (!existsSync(CONSENSUS_FILE)) return [];
-  try {
-    return JSON.parse(readFileSync(CONSENSUS_FILE, 'utf-8'));
-  } catch {
-    return [];
-  }
+  return readJSONSafe<Assumption[]>(CONSENSUS_FILE, []);
 }
 
 function save(data: Assumption[]) {
-  mkdirSync(FINSTACK_DIR, { recursive: true });
-  writeFileSync(CONSENSUS_FILE, JSON.stringify(data, null, 2));
+  atomicWriteJSON(CONSENSUS_FILE, data);
 }
 
 export async function regime(args: string[]) {

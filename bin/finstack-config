@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# finstack-config — read/write ~/.finstack/config.yaml
+set -euo pipefail
+
+FINSTACK_DIR="${FINSTACK_HOME:-$HOME/.finstack}"
+CONFIG="$FINSTACK_DIR/config.yaml"
+
+usage() {
+  echo "Usage: finstack-config get <key> | set <key> <value> | list"
+  exit 1
+}
+
+ensure_config() {
+  if [ ! -f "$CONFIG" ]; then
+    mkdir -p "$FINSTACK_DIR"
+    cat > "$CONFIG" <<'YAML'
+auto_upgrade: false
+update_check: true
+YAML
+  fi
+}
+
+cmd_get() {
+  local key="$1"
+  ensure_config
+  grep -E "^${key}:" "$CONFIG" 2>/dev/null | awk '{print $2}' || echo ""
+}
+
+cmd_set() {
+  local key="$1" value="$2"
+  ensure_config
+  local tmp="$CONFIG.tmp.$$"
+  if grep -qE "^${key}:" "$CONFIG" 2>/dev/null; then
+    sed "s/^${key}:.*/${key}: ${value}/" "$CONFIG" > "$tmp"
+  else
+    cp "$CONFIG" "$tmp"
+    echo "${key}: ${value}" >> "$tmp"
+  fi
+  mv "$tmp" "$CONFIG"
+}
+
+cmd_list() {
+  ensure_config
+  cat "$CONFIG"
+}
+
+[ $# -lt 1 ] && usage
+
+case "$1" in
+  get)   [ $# -lt 2 ] && usage; cmd_get "$2" ;;
+  set)   [ $# -lt 3 ] && usage; cmd_set "$2" "$3" ;;
+  list)  cmd_list ;;
+  *)     usage ;;
+esac

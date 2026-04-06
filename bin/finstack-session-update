@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# finstack-session-update — SessionStart hook for team mode
+# Runs in background, never blocks, always exits 0
+trap 'exit 0' ERR
+
+FINSTACK_DIR="${FINSTACK_HOME:-$HOME/.finstack}"
+SK_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Guard: auto_upgrade must be enabled
+CONFIG="$FINSTACK_DIR/config.yaml"
+if [ -f "$CONFIG" ]; then
+  AUTO=$(grep -E '^auto_upgrade:' "$CONFIG" 2>/dev/null | awk '{print $2}')
+else
+  AUTO="false"
+fi
+[ "$AUTO" != "true" ] && exit 0
+[ ! -d "$SK_DIR/.git" ] && exit 0
+
+# Throttle: skip if checked within last hour
+MARKER="$FINSTACK_DIR/.last-session-update"
+if [ -f "$MARKER" ] && [ -z "$(find "$MARKER" -mmin +60 2>/dev/null)" ]; then
+  exit 0
+fi
+mkdir -p "$FINSTACK_DIR"
+touch "$MARKER"
+
+# Background: pull + rebuild if changed
+(
+  cd "$SK_DIR" || exit 0
+  OLD_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
+  GIT_TERMINAL_PROMPT=0 git pull --ff-only -q 2>/dev/null || exit 0
+  NEW_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
+
+  if [ "$OLD_HEAD" != "$NEW_HEAD" ]; then
+    OLD_VER=$(git show "$OLD_HEAD:VERSION" 2>/dev/null || echo "unknown")
+    bun run build 2>/dev/null || true
+    echo "$OLD_VER" > "$FINSTACK_DIR/just-upgraded-from"
+    rm -f "$FINSTACK_DIR/last-update-check"
+  fi
+) &
+
+exit 0

@@ -1,8 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { homedir } from 'os';
-
-const DEFAULT_FILE = join(homedir(), '.finstack', 'theses.json');
+import { THESES_FILE } from '../paths';
+import { atomicWriteJSON, readJSONSafe } from '../fs';
 
 type ThesisStatus = 'alive' | 'threatened' | 'critical' | 'reinforced' | 'dead';
 type ConditionStatus = 'pending' | 'passed' | 'failed';
@@ -63,18 +60,12 @@ interface ThesesStore {
   theses: Thesis[];
 }
 
-export function loadTheses(file = DEFAULT_FILE): ThesesStore {
-  if (!existsSync(file)) return { theses: [] };
-  try {
-    return JSON.parse(readFileSync(file, 'utf-8'));
-  } catch {
-    return { theses: [] };
-  }
+export function loadTheses(file = THESES_FILE): ThesesStore {
+  return readJSONSafe<ThesesStore>(file, { theses: [] });
 }
 
 function save(data: ThesesStore, file: string): void {
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(data, null, 2));
+  atomicWriteJSON(file, data);
 }
 
 export function registerThesis(params: {
@@ -91,7 +82,7 @@ export function registerThesis(params: {
     falsificationTest?: string;
     watchTickers?: string[];
   }>;
-}, file = DEFAULT_FILE): Thesis {
+}, file = THESES_FILE): Thesis {
   const store = loadTheses(file);
   const now = new Date().toISOString();
   const tsBase = Date.now();
@@ -141,7 +132,7 @@ export function registerThesis(params: {
   return thesis;
 }
 
-export function transitionThesis(id: string, to: ThesisStatus, reason: string, file = DEFAULT_FILE): void {
+export function transitionThesis(id: string, to: ThesisStatus, reason: string, file = THESES_FILE): void {
   const store = loadTheses(file);
   const thesis = store.theses.find(t => t.id === id);
   if (!thesis) return;
@@ -153,7 +144,7 @@ export function transitionThesis(id: string, to: ThesisStatus, reason: string, f
   save(store, file);
 }
 
-export function killThesis(id: string, reason: string, file = DEFAULT_FILE): void {
+export function killThesis(id: string, reason: string, file = THESES_FILE): void {
   const store = loadTheses(file);
   const thesis = store.theses.find(t => t.id === id);
   if (!thesis) return;
@@ -172,7 +163,7 @@ export function addThreat(
   thesisId: string,
   conditionId: string,
   threat: Threat,
-  file = DEFAULT_FILE,
+  file = THESES_FILE,
 ): void {
   const store = loadTheses(file);
   const thesis = store.theses.find(t => t.id === thesisId);
@@ -184,17 +175,17 @@ export function addThreat(
   save(store, file);
 }
 
-export function getAlive(file = DEFAULT_FILE): Thesis[] {
+export function getAlive(file = THESES_FILE): Thesis[] {
   const store = loadTheses(file);
   return store.theses.filter(t => t.status !== 'dead');
 }
 
-export function getDead(file = DEFAULT_FILE): Thesis[] {
+export function getDead(file = THESES_FILE): Thesis[] {
   const store = loadTheses(file);
   return store.theses.filter(t => t.status === 'dead');
 }
 
-export function getObituaryQueue(file = DEFAULT_FILE): Thesis[] {
+export function getObituaryQueue(file = THESES_FILE): Thesis[] {
   const today = new Date().toISOString().split('T')[0];
   return getDead(file).filter(t => t.obituaryDueDate && t.obituaryDueDate <= today);
 }

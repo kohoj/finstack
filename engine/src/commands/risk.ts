@@ -1,11 +1,6 @@
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
 import { loadShadow, type ShadowEntry } from '../data/shadow';
-
-const FINSTACK_DIR = join(homedir(), '.finstack');
-const PORTFOLIO_FILE = join(FINSTACK_DIR, 'portfolio.json');
-const PROFILE_FILE = join(FINSTACK_DIR, 'profile.json');
+import { PORTFOLIO_FILE, PROFILE_FILE } from '../paths';
+import { readJSONSafe } from '../fs';
 
 interface Position {
   ticker: string;
@@ -129,24 +124,18 @@ export function evaluateRiskGate(
 }
 
 function loadPortfolio(): Portfolio {
-  if (!existsSync(PORTFOLIO_FILE)) return { positions: [], transactions: [], updatedAt: '' };
-  try {
-    const data = JSON.parse(readFileSync(PORTFOLIO_FILE, 'utf-8'));
-    if (!data.transactions) data.transactions = [];
-    return data as Portfolio;
-  } catch {
-    return { positions: [], transactions: [], updatedAt: '' };
-  }
+  const data = readJSONSafe<Portfolio>(PORTFOLIO_FILE, {
+    positions: [],
+    transactions: [],
+    updatedAt: ''
+  });
+  if (!data.transactions) data.transactions = [];
+  return data as Portfolio;
 }
 
 function loadProfile(): { riskBudgetPct: number } {
-  if (!existsSync(PROFILE_FILE)) return { riskBudgetPct: 2 };
-  try {
-    const data = JSON.parse(readFileSync(PROFILE_FILE, 'utf-8'));
-    return { riskBudgetPct: data.riskBudgetPct || 2 };
-  } catch {
-    return { riskBudgetPct: 2 };
-  }
+  const data = readJSONSafe<any>(PROFILE_FILE, { riskBudgetPct: 2 });
+  return { riskBudgetPct: data.riskBudgetPct || 2 };
 }
 
 export async function risk(args: string[]) {

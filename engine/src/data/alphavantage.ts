@@ -1,4 +1,5 @@
 import { getKey } from './keys';
+import { fetchWithRetry } from '../net';
 
 const BASE = 'https://www.alphavantage.co/query';
 
@@ -36,7 +37,7 @@ export async function fetchEarnings(ticker: string): Promise<EarningsResult> {
   if (!apiKey) throw new Error('Alpha Vantage API key not configured. Run: finstack keys set alphavantage <your-key>');
 
   const url = `${BASE}?function=EARNINGS&symbol=${encodeURIComponent(ticker)}&apikey=${apiKey}`;
-  const res = await fetch(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`Alpha Vantage ${res.status}: ${await res.text().catch(() => '')}`);
   const data = await res.json();
 

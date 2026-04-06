@@ -1,8 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { homedir } from 'os';
-
-const DEFAULT_FILE = join(homedir(), '.finstack', 'shadow.json');
+import { SHADOW_FILE } from '../paths';
+import { atomicWriteJSON, readJSONSafe } from '../fs';
 
 interface StagedTranche {
   tranche: number;
@@ -40,18 +37,12 @@ interface Shadow {
   entries: ShadowEntry[];
 }
 
-export function loadShadow(file = DEFAULT_FILE): Shadow {
-  if (!existsSync(file)) return { entries: [] };
-  try {
-    return JSON.parse(readFileSync(file, 'utf-8'));
-  } catch {
-    return { entries: [] };
-  }
+export function loadShadow(file = SHADOW_FILE): Shadow {
+  return readJSONSafe<Shadow>(file, { entries: [] });
 }
 
 function save(data: Shadow, file: string): void {
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(data, null, 2));
+  atomicWriteJSON(file, data);
 }
 
 export function createEntry(params: {
@@ -66,7 +57,7 @@ export function createEntry(params: {
   linkedThesis: string | null;
   sourceJudge: string;
   sourceAct: string;
-}, file = DEFAULT_FILE): ShadowEntry {
+}, file = SHADOW_FILE): ShadowEntry {
   const shadow = loadShadow(file);
   const filledShares = params.stagedPlan
     .filter(t => t.status === 'filled')
@@ -87,7 +78,7 @@ export function createEntry(params: {
   return entry;
 }
 
-export function findOpen(ticker: string, file = DEFAULT_FILE): ShadowEntry | null {
+export function findOpen(ticker: string, file = SHADOW_FILE): ShadowEntry | null {
   const shadow = loadShadow(file);
   return shadow.entries.find(e => e.ticker === ticker.toUpperCase() && e.status === 'open') || null;
 }
@@ -97,7 +88,7 @@ export function closeEntry(
   exitPrice: number,
   exitDate: string,
   exitReason: string,
-  file = DEFAULT_FILE,
+  file = SHADOW_FILE,
 ): void {
   const shadow = loadShadow(file);
   const entry = shadow.entries.find(e => e.ticker === ticker.toUpperCase() && e.status === 'open');

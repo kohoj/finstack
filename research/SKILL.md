@@ -28,10 +28,24 @@ printout — a document with narrative, logic, and honest uncertainty.
 ## Binary Resolution
 
 ```bash
-F=""
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/finstack/engine/dist/finstack" ] && F="$_ROOT/.claude/skills/finstack/engine/dist/finstack"
-[ -z "$F" ] && F=~/.claude/skills/finstack/engine/dist/finstack
+_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
+[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+
+# Update check
+_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD"
+
+# Auto-rebuild if source is newer than binary
+F="$_SK/engine/dist/finstack"
+if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
+  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
+  if [ -n "$_NEWEST" ]; then
+    echo "REBUILDING: source changed..."
+    (cd "$_SK" && bun run build 2>/dev/null) && echo "REBUILT" || echo "REBUILD_FAILED"
+  fi
+fi
+
 [ -x "$F" ] && echo "ENGINE: $F" || echo "ENGINE_MISSING"
 ```
 

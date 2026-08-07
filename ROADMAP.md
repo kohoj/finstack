@@ -65,8 +65,8 @@ strategy simulator, and turning it into one would encourage curve-fitting.
 - [x] Documentation drift fails CI
 - [x] Every skill has an E2E test
 - [x] Skill-authored state is schema-validated
-- [ ] A published release with prebuilt binaries
+- [x] A published release with prebuilt binaries
 - [ ] Someone other than the author has run it for a full quarter
 
-The last one is the real bar. Everything else is verifiable in CI; that one is
-not.
+One item left, and it is the real bar. Everything else is verifiable in CI;
+that one is not.

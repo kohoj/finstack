@@ -692,6 +692,13 @@ engine commands were invoked, that a journal entry was written, that the output
 carries the skill's characteristic markers. Asserting on LLM prose would be
 flaky without testing anything the prose is supposed to guarantee.
 
+**Run it by hand after changing a SKILL.md**, which is the only time it can
+tell you anything. It is deliberately not in CI: a skill is a prompt, so the
+suite has to start real Claude Code sessions, and running that on a schedule
+spends API budget re-verifying files that have not changed. Four harness tests
+do run in the normal suite — they check the runner itself without spending
+anything.
+
 ## Extending finstack
 
 ### Adding a New Command

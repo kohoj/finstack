@@ -21,6 +21,10 @@ bun run test:e2e            # Skill E2E via Claude API (EVALS=1, costs money)
 `bun run test:gate` is what CI runs and what the pre-commit hook runs. If it
 passes locally, CI will pass.
 
+`test:e2e` is not in CI and not in the gate. Run it by hand when you change a
+SKILL.md — that is the only time it can tell you anything, since a skill is a
+prompt and the suite has to start real Claude Code sessions to exercise one.
+
 ## Before You Open a PR
 
 ```bash

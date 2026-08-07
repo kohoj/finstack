@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
+import { barChart, heatmapTable, lineChart, pieChart } from '../../src/report/charts';
 import { renderReport } from '../../src/report/templates';
-import { lineChart, barChart, pieChart, heatmapTable } from '../../src/report/charts';
 
 describe('charts', () => {
   it('generates line chart config', () => {
-    const config = lineChart(['Jan', 'Feb'], [{ label: 'SPY', data: [100, 105], color: '#3b82f6' }]);
+    const config = lineChart(
+      ['Jan', 'Feb'],
+      [{ label: 'SPY', data: [100, 105], color: '#3b82f6' }],
+    );
     expect(config.type).toBe('line');
     expect(config.data.labels).toEqual(['Jan', 'Feb']);
     expect(config.data.datasets[0].label).toBe('SPY');
@@ -23,7 +26,13 @@ describe('charts', () => {
   });
 
   it('generates heatmap table HTML', () => {
-    const html = heatmapTable(['A', 'B'], [[1.0, 0.5], [0.5, 1.0]]);
+    const html = heatmapTable(
+      ['A', 'B'],
+      [
+        [1.0, 0.5],
+        [0.5, 1.0],
+      ],
+    );
     expect(html).toContain('<table');
     expect(html).toContain('1.00');
     expect(html).toContain('0.50');

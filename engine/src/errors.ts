@@ -4,12 +4,7 @@ export class FinstackError extends Error {
   suggestion?: string;
   cached?: { data: unknown; age: string };
 
-  constructor(
-    message: string,
-    source?: string,
-    reason?: string,
-    suggestion?: string,
-  ) {
+  constructor(message: string, source?: string, reason?: string, suggestion?: string) {
     super(message);
     this.name = 'FinstackError';
     this.source = source;

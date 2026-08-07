@@ -1,9 +1,9 @@
-import { existsSync, readdirSync, unlinkSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import { atomicWriteJSON, readJSONSafe } from './fs';
-import { homedir } from 'os';
+import { paths } from './paths';
 
-const getSessionDir = () => join(process.env.FINSTACK_HOME || join(homedir(), '.finstack'), 'sessions');
+const getSessionDir = () => join(paths.FINSTACK_HOME, 'sessions');
 const SESSION_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 interface SessionInfo {
@@ -40,7 +40,9 @@ export function getActiveSessions(): SessionInfo[] {
       const age = now - new Date(session.startedAt).getTime();
       if (age > SESSION_TTL) {
         // Stale session, clean up
-        try { unlinkSync(filePath); } catch {}
+        try {
+          unlinkSync(filePath);
+        } catch {}
         continue;
       }
 
@@ -63,14 +65,18 @@ export function cleanStaleSessions(): number {
       const filePath = join(getSessionDir(), file);
       const session = readJSONSafe<SessionInfo>(filePath, null as any);
       if (!session) {
-        try { unlinkSync(filePath); } catch {}
+        try {
+          unlinkSync(filePath);
+        } catch {}
         cleaned++;
         continue;
       }
 
       const age = now - new Date(session.startedAt).getTime();
       if (age > SESSION_TTL) {
-        try { unlinkSync(filePath); } catch {}
+        try {
+          unlinkSync(filePath);
+        } catch {}
         cleaned++;
       }
     }
@@ -81,5 +87,7 @@ export function cleanStaleSessions(): number {
 
 export function unregisterSession(): void {
   const file = join(getSessionDir(), `${process.ppid}.json`);
-  try { unlinkSync(file); } catch {}
+  try {
+    unlinkSync(file);
+  } catch {}
 }

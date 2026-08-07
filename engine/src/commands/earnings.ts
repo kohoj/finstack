@@ -1,14 +1,12 @@
 // engine/src/commands/earnings.ts
-import { fetchEarnings } from '../data/alphavantage';
+
 import { getCached, getCachedWithFallback, setCache } from '../cache';
+import { fetchEarnings } from '../data/alphavantage';
 import { FinstackError } from '../errors';
+import { validateTicker } from '../validation';
 
 export async function earnings(args: string[]) {
-  const ticker = args[0]?.toUpperCase();
-  if (!ticker) {
-    console.error(JSON.stringify({ error: 'Usage: finstack earnings <ticker>' }));
-    process.exit(1);
-  }
+  const ticker = validateTicker(args[0]);
 
   // Handle --upcoming flag
   if (args.includes('--upcoming')) {

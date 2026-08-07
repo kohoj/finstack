@@ -1,0 +1,10 @@
+# Revisions listed here are skipped by `git blame`.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Only add commits that are purely mechanical (formatting, import ordering)
+# with no behavioral change.
+
+# style: apply biome formatting and mechanical lint fixes
+16d9ece36fa2b920f87dfe1bff2e3350e3ee516b

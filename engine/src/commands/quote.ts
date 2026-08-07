@@ -1,15 +1,13 @@
 // engine/src/commands/quote.ts
-import { fetchChart, extractQuote } from '../data/yahoo';
+
 import { getCached, getCachedWithFallback, setCache } from '../cache';
 import { getKey } from '../data/keys';
+import { extractQuote, fetchChart } from '../data/yahoo';
 import { FinstackError } from '../errors';
+import { validateTicker } from '../validation';
 
 export async function quote(args: string[]) {
-  const ticker = args[0]?.toUpperCase();
-  if (!ticker) {
-    console.error(JSON.stringify({ error: 'Usage: finstack quote <ticker>' }));
-    process.exit(1);
-  }
+  const ticker = validateTicker(args[0]);
 
   const cacheKey = `quote-${ticker}`;
 

@@ -1,17 +1,15 @@
 // engine/src/commands/financials.ts
-import { fetchQuoteSummary, extractFinancials } from '../data/yahoo';
+
 import { getCached, getCachedWithFallback, setCache } from '../cache';
 import { getKey } from '../data/keys';
+import { extractFinancials, fetchQuoteSummary } from '../data/yahoo';
 import { FinstackError } from '../errors';
+import { validateTicker } from '../validation';
 
 const MODULES = ['financialData', 'defaultKeyStatistics', 'price', 'assetProfile'];
 
 export async function financials(args: string[]) {
-  const ticker = args[0]?.toUpperCase();
-  if (!ticker) {
-    console.error(JSON.stringify({ error: 'Usage: finstack financials <ticker>' }));
-    process.exit(1);
-  }
+  const ticker = validateTicker(args[0]);
 
   const cacheKey = `financials-${ticker}`;
   const cached = getCached(cacheKey, 'financials');

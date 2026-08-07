@@ -29,15 +29,23 @@ async function getCrumb(): Promise<{ crumb: string; cookie: string }> {
   }
   clearCrumb();
   const ua = randomUA();
-  const consentRes = await fetchWithRetry('https://fc.yahoo.com', {
-    headers: { 'User-Agent': ua },
-    redirect: 'manual',
-  }, { retries: 1, backoffMs: [500], timeoutMs: 8000 });
+  const consentRes = await fetchWithRetry(
+    'https://fc.yahoo.com',
+    {
+      headers: { 'User-Agent': ua },
+      redirect: 'manual',
+    },
+    { retries: 1, backoffMs: [500], timeoutMs: 8000 },
+  );
   const setCookies = consentRes.headers.getSetCookie?.() || [];
   const cookies = setCookies.map(c => c.split(';')[0]).join('; ');
-  const crumbRes = await fetchWithRetry(`${BASE}/v1/test/getcrumb`, {
-    headers: { 'User-Agent': ua, 'Cookie': cookies },
-  }, { retries: 1, backoffMs: [500], timeoutMs: 8000 });
+  const crumbRes = await fetchWithRetry(
+    `${BASE}/v1/test/getcrumb`,
+    {
+      headers: { 'User-Agent': ua, Cookie: cookies },
+    },
+    { retries: 1, backoffMs: [500], timeoutMs: 8000 },
+  );
   if (!crumbRes.ok) throw new Error(`Failed to get Yahoo crumb: ${crumbRes.status}`);
   const crumb = await crumbRes.text();
   _crumb = crumb;
@@ -48,24 +56,30 @@ async function getCrumb(): Promise<{ crumb: string; cookie: string }> {
 
 async function yf(path: string, needsCrumb = false): Promise<any> {
   const ua = randomUA();
-  let headers: Record<string, string> = { 'User-Agent': ua };
+  const headers: Record<string, string> = { 'User-Agent': ua };
   let url = `${BASE}${path}`;
   if (needsCrumb) {
     try {
       const { crumb, cookie } = await getCrumb();
-      url += (url.includes('?') ? '&' : '?') + `crumb=${encodeURIComponent(crumb)}`;
-      headers['Cookie'] = cookie;
+      url += `${url.includes('?') ? '&' : '?'}crumb=${encodeURIComponent(crumb)}`;
+      headers.Cookie = cookie;
     } catch {
       clearCrumb();
       const { crumb, cookie } = await getCrumb();
       url = `${BASE}${path}`;
-      url += (url.includes('?') ? '&' : '?') + `crumb=${encodeURIComponent(crumb)}`;
-      headers['Cookie'] = cookie;
+      url += `${url.includes('?') ? '&' : '?'}crumb=${encodeURIComponent(crumb)}`;
+      headers.Cookie = cookie;
     }
   }
-  const res = await fetchWithRetry(url, { headers }, {
-    retries: 2, backoffMs: [1000, 3000], timeoutMs: 10_000,
-  });
+  const res = await fetchWithRetry(
+    url,
+    { headers },
+    {
+      retries: 2,
+      backoffMs: [1000, 3000],
+      timeoutMs: 10_000,
+    },
+  );
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) clearCrumb();
     const text = await res.text().catch(() => '');
@@ -75,11 +89,16 @@ async function yf(path: string, needsCrumb = false): Promise<any> {
 }
 
 export async function fetchChart(ticker: string, range = '1mo', interval = '1d') {
-  return yf(`/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}&includePrePost=false`);
+  return yf(
+    `/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}&includePrePost=false`,
+  );
 }
 
 export async function fetchQuoteSummary(ticker: string, modules: string[]) {
-  return yf(`/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules.join(',')}`, true);
+  return yf(
+    `/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules.join(',')}`,
+    true,
+  );
 }
 
 export async function fetchTrending(region = 'US', count = 20) {

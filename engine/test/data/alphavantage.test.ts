@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { parseEarnings } from '../../src/data/alphavantage';
 
 describe('alphavantage', () => {
@@ -28,8 +28,8 @@ describe('alphavantage', () => {
     expect(result.ticker).toBe('AAPL');
     expect(result.quarterly.length).toBe(2);
     expect(result.quarterly[0].reportedEPS).toBe(1.64);
-    expect(result.quarterly[0].estimatedEPS).toBe(1.60);
-    expect(result.quarterly[0].surprisePct).toBe(2.50);
+    expect(result.quarterly[0].estimatedEPS).toBe(1.6);
+    expect(result.quarterly[0].surprisePct).toBe(2.5);
     expect(result.quarterly[0].date).toBe('2024-10-31');
     expect(result.quarterly[0].fiscalEnd).toBe('2024-09-30');
   });

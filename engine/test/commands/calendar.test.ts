@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 describe('calendar', () => {
   it('filters entries within date range', () => {
@@ -8,8 +8,24 @@ describe('calendar', () => {
     const outRange = new Date(now.getTime() + 60 * 86400000).toISOString().split('T')[0];
 
     const entries = [
-      { ticker: 'NVDA', earningsDate: inRange, earningsDateEnd: null, epsEstimate: null, source: 'yahoo', inPortfolio: true, inWatchlist: false },
-      { ticker: 'AMD', earningsDate: outRange, earningsDateEnd: null, epsEstimate: null, source: 'yahoo', inPortfolio: false, inWatchlist: true },
+      {
+        ticker: 'NVDA',
+        earningsDate: inRange,
+        earningsDateEnd: null,
+        epsEstimate: null,
+        source: 'yahoo',
+        inPortfolio: true,
+        inWatchlist: false,
+      },
+      {
+        ticker: 'AMD',
+        earningsDate: outRange,
+        earningsDateEnd: null,
+        epsEstimate: null,
+        source: 'yahoo',
+        inPortfolio: false,
+        inWatchlist: true,
+      },
     ];
 
     const cutoff = new Date(now.getTime() + 30 * 86400000);

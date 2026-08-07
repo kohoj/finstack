@@ -1,10 +1,19 @@
-import { fetchTrending, fetchSearch } from '../data/yahoo';
-import { getCached, setCache } from '../cache';
+import { getCached, getCachedWithFallback, setCache } from '../cache';
+import { fetchSearch, fetchTrending } from '../data/yahoo';
 import { FinstackError } from '../errors';
 
 export async function scan(args: string[]) {
   const source = args.includes('--source') ? args[args.indexOf('--source') + 1] : 'all';
   const region = args.includes('--region') ? args[args.indexOf('--region') + 1] : 'US';
+
+  if (!['all', 'trending', 'news'].includes(source)) {
+    throw new FinstackError(
+      `Unknown scan source: ${source}`,
+      undefined,
+      'Valid sources are: trending, news, all',
+      'Example: finstack scan --source all',
+    );
+  }
 
   const cacheKey = `scan-${source}-${region}`;
   const cached = getCached(cacheKey, 'scan');
@@ -15,6 +24,7 @@ export async function scan(args: string[]) {
   }
 
   const output: any = { timestamp: new Date().toISOString(), region, signals: [] };
+  let anySucceeded = false;
 
   if (source === 'all' || source === 'trending') {
     try {
@@ -24,6 +34,7 @@ export async function scan(args: string[]) {
         type: 'trending',
         items: tickers.slice(0, 10).map((q: any) => q.symbol),
       });
+      anySucceeded = true;
     } catch (e: any) {
       output.signals.push({ type: 'trending', error: e.message });
     }
@@ -35,6 +46,7 @@ export async function scan(args: string[]) {
       try {
         const search = await fetchSearch(q);
         const news = search?.news || [];
+        anySucceeded = true;
         if (news.length > 0) {
           output.signals.push({
             type: 'news',
@@ -50,9 +62,25 @@ export async function scan(args: string[]) {
           });
         }
       } catch {
-        // Non-critical, skip
+        // Non-critical, skip — a single failed query should not fail the scan
       }
     }
+  }
+
+  // Every source failed. Do not cache or report an empty scan as success:
+  // /sense must be able to tell "quiet market" from "scan is broken".
+  if (!anySucceeded) {
+    const stale = getCachedWithFallback(cacheKey, 'scan');
+    if (stale) {
+      console.log(JSON.stringify({ ...stale.data, _stale: true, _cacheAge: stale.age }, null, 2));
+      return;
+    }
+    throw new FinstackError(
+      'Scan failed — no data source responded',
+      'yahoo',
+      'Trending and news endpoints both unavailable',
+      'Retry later, or use WebSearch for market signals',
+    );
   }
 
   setCache(cacheKey, output);

@@ -1,6 +1,7 @@
-import { PORTFOLIO_FILE, WATCHLIST_FILE } from '../paths';
-import { readJSONSafe } from '../fs';
 import { getCached, setCache } from '../cache';
+import { readJSONSafe } from '../fs';
+import { paths } from '../paths';
+import { validatePositiveInt } from '../validation';
 
 function parseFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -11,7 +12,11 @@ export function pearsonCorrelation(x: number[], y: number[]): number {
   const n = Math.min(x.length, y.length);
   if (n < 3) return 0;
 
-  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+  let sumX = 0,
+    sumY = 0,
+    sumXY = 0,
+    sumX2 = 0,
+    sumY2 = 0;
   for (let i = 0; i < n; i++) {
     sumX += x[i];
     sumY += y[i];
@@ -93,10 +98,12 @@ async function fetchClosePrices(ticker: string, period: number): Promise<number[
 
     // Cache the result
     const timestamps = result.timestamp || [];
-    const bars = timestamps.map((t: number, i: number) => ({
-      date: new Date(t * 1000).toISOString().split('T')[0],
-      close: quotes?.close?.[i] ?? null,
-    })).filter((b: any) => b.close !== null);
+    const bars = timestamps
+      .map((t: number, i: number) => ({
+        date: new Date(t * 1000).toISOString().split('T')[0],
+        close: quotes?.close?.[i] ?? null,
+      }))
+      .filter((b: any) => b.close !== null);
     setCache(cacheKey, { ticker, from, to, source: 'yahoo', bars });
 
     return closes;
@@ -107,23 +114,30 @@ async function fetchClosePrices(ticker: string, period: number): Promise<number[
 
 export async function correlate(args: string[]) {
   const periodStr = parseFlag(args, '--period');
-  const period = periodStr ? parseInt(periodStr) : 90;
+  const period = periodStr ? validatePositiveInt(periodStr, 'period') : 90;
   const includeWatchlist = args.includes('--include-watchlist');
 
   // Gather tickers
-  const portfolio = readJSONSafe<any>(PORTFOLIO_FILE, { positions: [] });
-  let tickers = portfolio.positions.map((p: any) => p.ticker as string);
+  const portfolio = readJSONSafe<any>(paths.PORTFOLIO_FILE, { positions: [] });
+  let tickers: string[] = portfolio.positions.map((p: any) => p.ticker as string);
 
   if (includeWatchlist) {
-    const watchlist = readJSONSafe<any[]>(WATCHLIST_FILE, []);
+    const watchlist = readJSONSafe<any[]>(paths.WATCHLIST_FILE, []);
     const wlTickers = watchlist.map((w: any) => w.ticker as string);
     tickers = [...new Set([...tickers, ...wlTickers])];
   }
 
   if (tickers.length < 2) {
-    console.log(JSON.stringify({
-      message: 'Need at least 2 tickers for correlation. Add positions or use --include-watchlist.',
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          message:
+            'Need at least 2 tickers for correlation. Add positions or use --include-watchlist.',
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -133,10 +147,12 @@ export async function correlate(args: string[]) {
 
   for (let i = 0; i < tickers.length; i += batchSize) {
     const batch = tickers.slice(i, i + batchSize);
-    const results = await Promise.all(batch.map(async (t) => {
-      const closes = await fetchClosePrices(t, period);
-      return { ticker: t, returns: dailyReturns(closes) };
-    }));
+    const results = await Promise.all(
+      batch.map(async t => {
+        const closes = await fetchClosePrices(t, period);
+        return { ticker: t, returns: dailyReturns(closes) };
+      }),
+    );
     for (const r of results) {
       if (r.returns.length > 0) {
         returnSeries.set(r.ticker, r.returns);
@@ -145,19 +161,27 @@ export async function correlate(args: string[]) {
   }
 
   // Check if we got data
-  const tickersWithData = tickers.filter(t => returnSeries.has(t));
+  const _tickersWithData = tickers.filter(t => returnSeries.has(t));
   const tickersWithout = tickers.filter(t => !returnSeries.has(t));
 
   const { matrix, warnings } = computeCorrelationMatrix(tickers, returnSeries);
 
-  console.log(JSON.stringify({
-    period: `${period} days`,
-    tickers,
-    matrix,
-    highCorrelation: warnings,
-    ...(tickersWithout.length > 0 ? {
-      noData: tickersWithout,
-      note: `${tickersWithout.length} ticker(s) missing price data (data sources may be temporarily unavailable). Configure Polygon for better availability: finstack keys set polygon YOUR_KEY`,
-    } : {}),
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        period: `${period} days`,
+        tickers,
+        matrix,
+        highCorrelation: warnings,
+        ...(tickersWithout.length > 0
+          ? {
+              noData: tickersWithout,
+              note: `${tickersWithout.length} ticker(s) missing price data (data sources may be temporarily unavailable). Configure Polygon for better availability: finstack keys set polygon YOUR_KEY`,
+            }
+          : {}),
+      },
+      null,
+      2,
+    ),
+  );
 }

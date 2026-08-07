@@ -1,8 +1,9 @@
-import { THESES_FILE, SHADOW_FILE } from '../paths';
+import type { Shadow, ShadowEntry } from '../data/shadow';
+import type { ThesesStore, Thesis } from '../data/thesis';
+import { FinstackError } from '../errors';
 import { readJSONSafe } from '../fs';
-import { getCached, setCache } from '../cache';
-import type { Thesis, ThesesStore } from '../data/thesis';
-import type { ShadowEntry, Shadow } from '../data/shadow';
+import { paths } from '../paths';
+import { validatePositiveInt } from '../validation';
 
 function parseFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -31,7 +32,7 @@ function daysBetween(a: string, b: string): number {
   return Math.ceil((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
 
-async function fetchClosingPrice(ticker: string, date: string): Promise<number | null> {
+async function fetchClosingPrice(ticker: string, _date: string): Promise<number | null> {
   try {
     const { fetchChart } = await import('../data/yahoo');
     const raw = await fetchChart(ticker, '5d', '1d');
@@ -50,21 +51,21 @@ export function buildBacktestResult(
   currentPrice: number | null,
   spyReturn: number | null,
 ): BacktestResult {
-  const endDate = thesis.status === 'dead'
-    ? thesis.statusHistory.find(h => h.to === 'dead')?.date || new Date().toISOString()
-    : new Date().toISOString();
+  const endDate =
+    thesis.status === 'dead'
+      ? thesis.statusHistory.find(h => h.to === 'dead')?.date || new Date().toISOString()
+      : new Date().toISOString();
 
   const entryPrice = shadow?.stagedPlan?.[0]?.fillPrice || null;
   const exitPrice = shadow?.exitPrice || currentPrice;
 
   let returnPct: number | null = null;
   if (entryPrice && exitPrice) {
-    returnPct = +((exitPrice - entryPrice) / entryPrice * 100).toFixed(2);
+    returnPct = +(((exitPrice - entryPrice) / entryPrice) * 100).toFixed(2);
   }
 
-  const alpha = returnPct !== null && spyReturn !== null
-    ? +(returnPct - spyReturn).toFixed(2)
-    : null;
+  const alpha =
+    returnPct !== null && spyReturn !== null ? +(returnPct - spyReturn).toFixed(2) : null;
 
   const conditionResults = thesis.conditions.map(c => ({
     description: c.description,
@@ -72,9 +73,7 @@ export function buildBacktestResult(
     met: c.status === 'passed' ? true : c.status === 'failed' ? false : null,
   }));
 
-  const followedPlan = shadow
-    ? shadow.filledShares === shadow.totalShares
-    : null;
+  const followedPlan = shadow ? shadow.filledShares === shadow.totalShares : null;
 
   return {
     thesisId: thesis.id,
@@ -98,10 +97,10 @@ export function buildBacktestResult(
 export async function backtest(args: string[]) {
   const thesisId = parseFlag(args, '--thesis');
   const periodStr = parseFlag(args, '--period');
-  const period = periodStr ? parseInt(periodStr) : undefined;
+  const period = periodStr ? validatePositiveInt(periodStr, 'period') : undefined;
 
-  const store = readJSONSafe<ThesesStore>(THESES_FILE, { theses: [] });
-  const shadow = readJSONSafe<Shadow>(SHADOW_FILE, { entries: [] });
+  const store = readJSONSafe<ThesesStore>(paths.THESES_FILE, { theses: [] });
+  const shadow = readJSONSafe<Shadow>(paths.SHADOW_FILE, { entries: [] });
 
   // Filter theses
   let theses = store.theses;
@@ -109,8 +108,12 @@ export async function backtest(args: string[]) {
   if (thesisId) {
     theses = theses.filter(t => t.id === thesisId);
     if (theses.length === 0) {
-      console.error(JSON.stringify({ error: `Thesis ${thesisId} not found` }));
-      process.exit(1);
+      throw new FinstackError(
+        `Thesis ${thesisId} not found`,
+        undefined,
+        'No thesis with that id exists',
+        'Run `finstack thesis list` to see ids',
+      );
     }
   } else {
     // Default: closed/dead theses
@@ -123,11 +126,17 @@ export async function backtest(args: string[]) {
   }
 
   if (theses.length === 0) {
-    console.log(JSON.stringify({
-      message: 'No theses to backtest. Dead theses will appear here after /judge kills them.',
-      results: [],
-      count: 0,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          message: 'No theses to backtest. Dead theses will appear here after /judge kills them.',
+          results: [],
+          count: 0,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -138,9 +147,10 @@ export async function backtest(args: string[]) {
     const shadowEntry = shadow.entries.find(e => e.linkedThesis === thesis.id) || null;
 
     // Get current price for open theses
-    const currentPrice = thesis.status !== 'dead'
-      ? await fetchClosingPrice(thesis.ticker, new Date().toISOString().split('T')[0])
-      : shadowEntry?.exitPrice || null;
+    const currentPrice =
+      thesis.status !== 'dead'
+        ? await fetchClosingPrice(thesis.ticker, new Date().toISOString().split('T')[0])
+        : shadowEntry?.exitPrice || null;
 
     const result = buildBacktestResult(thesis, shadowEntry, currentPrice, null);
     results.push(result);
@@ -148,22 +158,31 @@ export async function backtest(args: string[]) {
 
   // Summary stats
   const withReturns = results.filter(r => r.returnPct !== null);
-  const avgReturn = withReturns.length > 0
-    ? +(withReturns.reduce((s, r) => s + r.returnPct!, 0) / withReturns.length).toFixed(2)
-    : null;
-  const winRate = withReturns.length > 0
-    ? +(withReturns.filter(r => r.returnPct! > 0).length / withReturns.length * 100).toFixed(1)
-    : null;
+  const avgReturn =
+    withReturns.length > 0
+      ? +(withReturns.reduce((s, r) => s + r.returnPct!, 0) / withReturns.length).toFixed(2)
+      : null;
+  const winRate =
+    withReturns.length > 0
+      ? +((withReturns.filter(r => r.returnPct! > 0).length / withReturns.length) * 100).toFixed(1)
+      : null;
 
-  console.log(JSON.stringify({
-    results,
-    count: results.length,
-    summary: {
-      avgReturn,
-      winRate,
-      totalTheses: results.length,
-      withShadow: results.filter(r => r.followedPlan !== null).length,
-      conditionsResolved: results.flatMap(r => r.conditionResults).filter(c => c.met !== null).length,
-    },
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        results,
+        count: results.length,
+        summary: {
+          avgReturn,
+          winRate,
+          totalTheses: results.length,
+          withShadow: results.filter(r => r.followedPlan !== null).length,
+          conditionsResolved: results.flatMap(r => r.conditionResults).filter(c => c.met !== null)
+            .length,
+        },
+      },
+      null,
+      2,
+    ),
+  );
 }

@@ -1,6 +1,6 @@
 import {
-  loadWatchlist,
   addToWatchlist,
+  loadWatchlist,
   removeFromWatchlist,
   tagTicker,
   untagTicker,
@@ -25,11 +25,19 @@ export async function watchlist(args: string[]) {
     case 'add': {
       const ticker = args[1];
       if (!ticker) {
-        console.error(JSON.stringify({ error: 'Usage: finstack watchlist add <ticker> [reason] [--thesis <id>]' }));
-        process.exit(1);
+        throw new FinstackError(
+          'Usage: finstack watchlist add <ticker> [reason] [--thesis <id>]',
+          undefined,
+          'No ticker provided',
+          'Example: finstack watchlist add NVDA "AI capex cycle"',
+        );
       }
       const thesis = parseFlag(args, '--thesis') || null;
-      const reason = args.slice(2).filter(a => a !== '--thesis' && a !== thesis).join(' ') || '';
+      const reason =
+        args
+          .slice(2)
+          .filter(a => a !== '--thesis' && a !== thesis)
+          .join(' ') || '';
       const entry = addToWatchlist(ticker, reason, undefined, thesis);
       console.log(JSON.stringify(entry, null, 2));
       break;
@@ -38,8 +46,12 @@ export async function watchlist(args: string[]) {
     case 'remove': {
       const ticker = args[1];
       if (!ticker) {
-        console.error(JSON.stringify({ error: 'Usage: finstack watchlist remove <ticker>' }));
-        process.exit(1);
+        throw new FinstackError(
+          'Usage: finstack watchlist remove <ticker>',
+          undefined,
+          'No ticker provided',
+          'Run `finstack watchlist` to see current entries',
+        );
       }
       removeFromWatchlist(ticker);
       console.log(JSON.stringify({ message: `${ticker.toUpperCase()} removed from watchlist` }));
@@ -50,13 +62,21 @@ export async function watchlist(args: string[]) {
       const ticker = args[1];
       const tag = args[2];
       if (!ticker || !tag) {
-        console.error(JSON.stringify({ error: 'Usage: finstack watchlist tag <ticker> <tag>' }));
-        process.exit(1);
+        throw new FinstackError(
+          'Usage: finstack watchlist tag <ticker> <tag>',
+          undefined,
+          'Both a ticker and a tag are required',
+          'Example: finstack watchlist tag NVDA ai',
+        );
       }
       const tagged = tagTicker(ticker, tag);
       if (!tagged) {
-        console.error(JSON.stringify({ error: `${ticker.toUpperCase()} is not in your watchlist. Add it first: finstack watchlist add ${ticker.toUpperCase()}` }));
-        process.exit(1);
+        throw new FinstackError(
+          `${ticker.toUpperCase()} is not in your watchlist`,
+          undefined,
+          'Cannot tag a ticker that is not being watched',
+          `Add it first: finstack watchlist add ${ticker.toUpperCase()}`,
+        );
       }
       console.log(JSON.stringify({ message: `Tagged ${ticker.toUpperCase()} with "${tag}"` }));
       break;
@@ -66,8 +86,12 @@ export async function watchlist(args: string[]) {
       const ticker = args[1];
       const tag = args[2];
       if (!ticker || !tag) {
-        console.error(JSON.stringify({ error: 'Usage: finstack watchlist untag <ticker> <tag>' }));
-        process.exit(1);
+        throw new FinstackError(
+          'Usage: finstack watchlist untag <ticker> <tag>',
+          undefined,
+          'Both a ticker and a tag are required',
+          'Example: finstack watchlist untag NVDA ai',
+        );
       }
       untagTicker(ticker, tag);
       console.log(JSON.stringify({ message: `Removed tag "${tag}" from ${ticker.toUpperCase()}` }));
@@ -75,6 +99,11 @@ export async function watchlist(args: string[]) {
     }
 
     default:
-      throw new FinstackError(`Unknown subcommand: ${sub}`, undefined, undefined, 'Use show|add|remove|tag|untag');
+      throw new FinstackError(
+        `Unknown subcommand: ${sub}`,
+        undefined,
+        undefined,
+        'Use show|add|remove|tag|untag',
+      );
   }
 }

@@ -1,18 +1,26 @@
 {
   "name": "finstack",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "An operating system for investment thinking — one person + AI = a hedge fund's research department",
   "type": "module",
   "scripts": {
     "build": "bun build --compile engine/src/cli.ts --outfile engine/dist/finstack && git rev-parse HEAD > engine/dist/.version 2>/dev/null || true",
     "dev": "bun run engine/src/cli.ts",
+    "dev:watch": "bun --watch run engine/src/cli.ts",
+    "lint": "bunx biome check engine scripts test",
+    "lint:fix": "bunx biome check --write engine scripts test",
+    "format": "bunx biome format --write engine scripts test",
+    "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
-    "test:gate": "bun test && bun run check:docs",
+    "test:gate": "bun run lint && bun run typecheck && bun test && bun run check:docs",
     "test:e2e": "EVALS=1 bun test test/skill-e2e/",
     "check:docs": "bun run scripts/check-docs.ts"
   },
   "bin": {
     "finstack": "./engine/dist/finstack"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.3.14"
+  }
 }

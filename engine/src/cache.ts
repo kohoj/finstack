@@ -1,8 +1,8 @@
 // engine/src/cache.ts
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { CACHE_DIR } from './paths';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { atomicWriteJSON } from './fs';
+import { paths } from './paths';
 
 const CACHE_VERSION = 2;
 
@@ -18,7 +18,7 @@ const TTL: Record<string, number> = {
 };
 
 function cacheFile(key: string): string {
-  return join(CACHE_DIR, `${key}.json`);
+  return join(paths.CACHE_DIR, `${key}.json`);
 }
 
 function formatAge(cachedAt: number): string {

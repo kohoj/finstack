@@ -1,0 +1,47 @@
+name: E2E
+
+# Skill E2E drives real Claude Code sessions, so every run costs API calls and
+# takes minutes. Too slow and too expensive for PR gating — scheduled instead,
+# with manual dispatch for when a skill change needs verifying before merge.
+on:
+  schedule:
+    # Mondays, 07:13 UTC. Off the hour deliberately: scheduled jobs on the hour
+    # queue behind everyone else's.
+    - cron: '13 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      skill:
+        description: Run one skill only (blank runs all)
+        required: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+      - run: bun run build
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Register skills
+        run: ./setup
+
+      - name: Run skill E2E
+        env:
+          EVALS: '1'
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "${{ github.event.inputs.skill }}" ]; then
+            bun test test/skill-e2e/ -t "/${{ github.event.inputs.skill }}"
+          else
+            bun test test/skill-e2e/
+          fi

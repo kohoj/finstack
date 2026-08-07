@@ -1,16 +1,18 @@
 // engine/test/commands/keys.test.ts
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { getKey, setKey, removeKey, listKeys } from '../../src/data/keys';
-import { existsSync, unlinkSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { getKey, listKeys, removeKey, setKey } from '../../src/data/keys';
 
 describe('keys command integration', () => {
-  const TEST_DIR = join(tmpdir(), '.finstack-test-keyscmd-' + Date.now());
+  const TEST_DIR = join(tmpdir(), `.finstack-test-keyscmd-${Date.now()}`);
   const TEST_FILE = join(TEST_DIR, 'keys.json');
 
   beforeEach(() => mkdirSync(TEST_DIR, { recursive: true }));
-  afterEach(() => { if (existsSync(TEST_FILE)) unlinkSync(TEST_FILE); });
+  afterEach(() => {
+    if (existsSync(TEST_FILE)) unlinkSync(TEST_FILE);
+  });
 
   it('set then list shows provider', () => {
     setKey('fred', 'mykey123', TEST_FILE);

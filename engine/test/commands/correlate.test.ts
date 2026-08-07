@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'bun:test';
-import { pearsonCorrelation, dailyReturns, computeCorrelationMatrix } from '../../src/commands/correlate';
+import { describe, expect, it } from 'bun:test';
+import {
+  computeCorrelationMatrix,
+  dailyReturns,
+  pearsonCorrelation,
+} from '../../src/commands/correlate';
 
 describe('pearsonCorrelation', () => {
   it('returns 1 for perfectly correlated series', () => {
@@ -69,7 +73,7 @@ describe('computeCorrelationMatrix', () => {
   it('warns on high correlation', () => {
     const returns = new Map([
       ['A', [0.01, 0.02, 0.03, 0.04, 0.05]],
-      ['B', [0.02, 0.04, 0.06, 0.08, 0.10]],
+      ['B', [0.02, 0.04, 0.06, 0.08, 0.1]],
     ]);
     const { warnings } = computeCorrelationMatrix(['A', 'B'], returns);
     expect(warnings.length).toBeGreaterThan(0);

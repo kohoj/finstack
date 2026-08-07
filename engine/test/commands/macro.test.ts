@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'bun:test';
-import { parseFredResponse, CORE_SERIES } from '../../src/data/fred';
+import { describe, expect, it } from 'bun:test';
+import { parseFredResponse } from '../../src/data/fred';
 
 describe('macro command logic', () => {
   it('formats multiple series into snapshot', () => {
@@ -11,7 +11,7 @@ describe('macro command logic', () => {
     };
     const result = parseFredResponse('DFF', mockData);
     expect(result.label).toBe('Federal Funds Rate');
-    expect(result.value).toBe(5.50);
+    expect(result.value).toBe(5.5);
     expect(result.change).toBe(0.25);
   });
 });

@@ -1,5 +1,5 @@
-import { getKey } from './keys';
 import { fetchWithRetry } from '../net';
+import { getKey } from './keys';
 
 const BASE = 'https://www.alphavantage.co/query';
 
@@ -34,7 +34,10 @@ export function parseEarnings(ticker: string, data: any): EarningsResult {
 
 export async function fetchEarnings(ticker: string): Promise<EarningsResult> {
   const apiKey = getKey('alphavantage');
-  if (!apiKey) throw new Error('Alpha Vantage API key not configured. Run: finstack keys set alphavantage <your-key>');
+  if (!apiKey)
+    throw new Error(
+      'Alpha Vantage API key not configured. Run: finstack keys set alphavantage <your-key>',
+    );
 
   const url = `${BASE}?function=EARNINGS&symbol=${encodeURIComponent(ticker)}&apikey=${apiKey}`;
   const res = await fetchWithRetry(url);
@@ -42,7 +45,7 @@ export async function fetchEarnings(ticker: string): Promise<EarningsResult> {
   const data = await res.json();
 
   if (data['Error Message']) throw new Error(`Alpha Vantage: ${data['Error Message']}`);
-  if (data['Note']) throw new Error('Alpha Vantage rate limit hit. Wait 1 minute.');
+  if (data.Note) throw new Error('Alpha Vantage rate limit hit. Wait 1 minute.');
 
   return parseEarnings(ticker, data);
 }

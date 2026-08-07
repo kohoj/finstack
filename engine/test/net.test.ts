@@ -1,12 +1,10 @@
 // engine/test/net.test.ts
-import { describe, it, expect, mock } from 'bun:test';
-import { fetchWithTimeout, fetchWithRetry, TimeoutError } from '../src/net';
+import { describe, expect, it, mock } from 'bun:test';
+import { fetchWithRetry, fetchWithTimeout, TimeoutError } from '../src/net';
 
 describe('fetchWithTimeout', () => {
   it('returns response when request completes within timeout', async () => {
-    const mockFetch = mock(() =>
-      Promise.resolve(new Response('ok', { status: 200 }))
-    );
+    const mockFetch = mock(() => Promise.resolve(new Response('ok', { status: 200 })));
     const original = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
     try {
@@ -19,18 +17,19 @@ describe('fetchWithTimeout', () => {
   });
 
   it('throws TimeoutError when request exceeds timeout', async () => {
-    const mockFetch = mock((_url: string, opts?: any) =>
-      new Promise<Response>((resolve, reject) => {
-        const timer = setTimeout(() => resolve(new Response('late')), 5000);
-        if (opts?.signal) {
-          opts.signal.addEventListener('abort', () => {
-            clearTimeout(timer);
-            const err = new Error('The operation was aborted');
-            err.name = 'AbortError';
-            reject(err);
-          });
-        }
-      })
+    const mockFetch = mock(
+      (_url: string, opts?: any) =>
+        new Promise<Response>((resolve, reject) => {
+          const timer = setTimeout(() => resolve(new Response('late')), 5000);
+          if (opts?.signal) {
+            opts.signal.addEventListener('abort', () => {
+              clearTimeout(timer);
+              const err = new Error('The operation was aborted');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          }
+        }),
     );
     const original = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
@@ -44,9 +43,7 @@ describe('fetchWithTimeout', () => {
 
 describe('fetchWithRetry', () => {
   it('returns on first success without retrying', async () => {
-    const mockFetch = mock(() =>
-      Promise.resolve(new Response('ok', { status: 200 }))
-    );
+    const mockFetch = mock(() => Promise.resolve(new Response('ok', { status: 200 })));
     const original = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
     try {
@@ -68,11 +65,15 @@ describe('fetchWithRetry', () => {
     const original = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
     try {
-      const res = await fetchWithRetry('http://example.com', {}, {
-        retries: 2,
-        backoffMs: [10, 20],
-        timeoutMs: 5000,
-      });
+      const res = await fetchWithRetry(
+        'http://example.com',
+        {},
+        {
+          retries: 2,
+          backoffMs: [10, 20],
+          timeoutMs: 5000,
+        },
+      );
       expect(res.status).toBe(200);
       expect(mockFetch).toHaveBeenCalledTimes(2);
     } finally {
@@ -81,17 +82,19 @@ describe('fetchWithRetry', () => {
   });
 
   it('does not retry on 4xx errors', async () => {
-    const mockFetch = mock(() =>
-      Promise.resolve(new Response('not found', { status: 404 }))
-    );
+    const mockFetch = mock(() => Promise.resolve(new Response('not found', { status: 404 })));
     const original = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
     try {
-      const res = await fetchWithRetry('http://example.com', {}, {
-        retries: 2,
-        backoffMs: [10, 20],
-        timeoutMs: 5000,
-      });
+      const res = await fetchWithRetry(
+        'http://example.com',
+        {},
+        {
+          retries: 2,
+          backoffMs: [10, 20],
+          timeoutMs: 5000,
+        },
+      );
       expect(res.status).toBe(404);
       expect(mockFetch).toHaveBeenCalledTimes(1);
     } finally {
@@ -100,18 +103,20 @@ describe('fetchWithRetry', () => {
   });
 
   it('throws after exhausting all retries', async () => {
-    const mockFetch = mock(() =>
-      Promise.resolve(new Response('error', { status: 503 }))
-    );
+    const mockFetch = mock(() => Promise.resolve(new Response('error', { status: 503 })));
     const original = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
     try {
       await expect(
-        fetchWithRetry('http://example.com', {}, {
-          retries: 2,
-          backoffMs: [10, 20],
-          timeoutMs: 5000,
-        })
+        fetchWithRetry(
+          'http://example.com',
+          {},
+          {
+            retries: 2,
+            backoffMs: [10, 20],
+            timeoutMs: 5000,
+          },
+        ),
       ).rejects.toThrow();
       expect(mockFetch).toHaveBeenCalledTimes(3);
     } finally {
@@ -129,11 +134,15 @@ describe('fetchWithRetry', () => {
     const original = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
     try {
-      const res = await fetchWithRetry('http://example.com', {}, {
-        retries: 2,
-        backoffMs: [10, 20],
-        timeoutMs: 5000,
-      });
+      const res = await fetchWithRetry(
+        'http://example.com',
+        {},
+        {
+          retries: 2,
+          backoffMs: [10, 20],
+          timeoutMs: 5000,
+        },
+      );
       expect(res.status).toBe(200);
       expect(mockFetch).toHaveBeenCalledTimes(2);
     } finally {

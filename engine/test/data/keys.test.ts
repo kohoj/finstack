@@ -1,11 +1,11 @@
 // engine/test/data/keys.test.ts
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { getKey, setKey, removeKey, listKeys } from '../../src/data/keys';
-import { existsSync, unlinkSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { getKey, listKeys, removeKey, setKey } from '../../src/data/keys';
 
-const TEST_DIR = join(tmpdir(), '.finstack-test-keys-' + Date.now());
+const TEST_DIR = join(tmpdir(), `.finstack-test-keys-${Date.now()}`);
 const TEST_KEYS_FILE = join(TEST_DIR, 'keys.json');
 
 describe('keys', () => {

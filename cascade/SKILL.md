@@ -13,7 +13,6 @@ allowed-tools:
   - WebSearch
   - WebFetch
   - TaskCreate
-  - TaskUpdate
 ---
 
 # /cascade — Trace the Dominoes

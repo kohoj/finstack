@@ -6,14 +6,11 @@ description: |
   to personalize what surfaces. Use when asked to "scan", "what's happening",
   "any signals", "morning briefing", or "what should I watch".
 allowed-tools:
-  - Agent
   - Bash
   - Read
   - Write
   - WebSearch
   - WebFetch
-  - TaskCreate
-  - TaskUpdate
 ---
 
 # /sense — Perceive
@@ -92,20 +89,31 @@ If the engine binary is missing, rely on WebSearch alone.
 
 ### Thesis Threat Detection
 
-1. Read `~/.finstack/theses.json` for all alive/threatened theses
+1. Run `$F thesis list` to see alive and threatened theses, with their
+   condition ids.
 2. For each news item from Step 1 that mentions a ticker in any thesis's
    `watchTickers`:
    - Read the thesis's `falsificationTest` (a natural language question)
    - Evaluate: does this news article answer the falsificationTest
      affirmatively? In other words, would a reasonable analyst interpret
      this news as evidence that the thesis condition is being challenged?
-   - If YES (genuine threat): add to the thesis condition's `threats`
-     array in theses.json, update thesis status to `threatened` if
-     currently `alive`
+   - If YES (genuine threat), record it:
+
+     ```bash
+     $F thesis threaten <thesis-id> \
+       --condition <condition-id> \
+       --source "<where the news came from>" \
+       --reasoning "<why this counts as evidence against the condition>" \
+       --confidence <high|moderate|low>
+     ```
+
+     This appends the threat and moves an `alive` thesis to `threatened`.
+     Threats accumulate — three independent sources is a different signal
+     from one, so record each separately rather than editing a prior threat.
    - Include in output as a thesis threat alert
 
-3. Do NOT automatically kill any thesis. Only flag threats. The user
-   runs `/judge` to make life/death decisions.
+3. Do NOT kill any thesis. Only flag threats. The user runs `/judge` to make
+   life/death decisions, and `$F thesis kill` is theirs to run, not yours.
 
 ### Enhanced Data Sources
 

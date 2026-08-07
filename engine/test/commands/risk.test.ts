@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'bun:test';
-import { calculateConcentration, calculatePositionSize, evaluateRiskGate } from '../../src/commands/risk';
+import { describe, expect, it } from 'bun:test';
+import {
+  calculateConcentration,
+  calculatePositionSize,
+  evaluateRiskGate,
+} from '../../src/commands/risk';
 
 describe('risk', () => {
   it('detects single-position concentration', () => {

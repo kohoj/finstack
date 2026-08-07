@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, rmSync, writeFileSync, readdirSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const TEST_DIR = join(tmpdir(), `finstack-session-test-${Date.now()}`);
 const SESSION_DIR = join(TEST_DIR, 'sessions');
@@ -9,7 +9,12 @@ const SESSION_DIR = join(TEST_DIR, 'sessions');
 // Set env before import
 process.env.FINSTACK_HOME = TEST_DIR;
 
-import { registerSession, getActiveSessions, cleanStaleSessions, unregisterSession } from '../src/session';
+import {
+  cleanStaleSessions,
+  getActiveSessions,
+  registerSession,
+  unregisterSession,
+} from '../src/session';
 
 describe('session tracking', () => {
   beforeEach(() => {
@@ -41,7 +46,7 @@ describe('session tracking', () => {
     const staleTime = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
     writeFileSync(
       join(SESSION_DIR, '99999.json'),
-      JSON.stringify({ pid: 99999, ppid: 99999, skill: 'old', startedAt: staleTime })
+      JSON.stringify({ pid: 99999, ppid: 99999, skill: 'old', startedAt: staleTime }),
     );
 
     const cleaned = cleanStaleSessions();

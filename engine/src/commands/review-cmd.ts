@@ -1,8 +1,7 @@
-import { THESES_FILE, SHADOW_FILE, PORTFOLIO_FILE, JOURNAL_DIR } from '../paths';
-import { readJSONSafe } from '../fs';
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readdirSync } from 'node:fs';
 import type { ThesesStore } from '../data/thesis';
+import { readJSONSafe } from '../fs';
+import { paths } from '../paths';
 
 function parseFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -27,22 +26,24 @@ export function aggregateReview(opts: {
   thesesFile?: string;
   journalDir?: string;
 }): ReviewData {
-  const { from, to, thesesFile = THESES_FILE, journalDir = JOURNAL_DIR } = opts;
+  const { from, to, thesesFile = paths.THESES_FILE, journalDir = paths.JOURNAL_DIR } = opts;
 
   // Thesis statistics
   const store = readJSONSafe<ThesesStore>(thesesFile, { theses: [] });
   const theses = store.theses;
 
-  const newTheses = theses.filter(t => t.createdAt >= from && t.createdAt <= to + 'T23:59:59Z').length;
+  const newTheses = theses.filter(
+    t => t.createdAt >= from && t.createdAt <= `${to}T23:59:59Z`,
+  ).length;
 
   const closedTheses = theses.filter(t => {
     if (t.status !== 'dead') return false;
     const deathEntry = t.statusHistory.find(h => h.to === 'dead');
-    return deathEntry && deathEntry.date >= from && deathEntry.date <= to + 'T23:59:59Z';
+    return deathEntry && deathEntry.date >= from && deathEntry.date <= `${to}T23:59:59Z`;
   }).length;
 
-  const threatenedTheses = theses.filter(t =>
-    t.status === 'threatened' || t.status === 'critical'
+  const threatenedTheses = theses.filter(
+    t => t.status === 'threatened' || t.status === 'critical',
   ).length;
 
   const totalActive = theses.filter(t => t.status !== 'dead').length;
@@ -103,7 +104,6 @@ export async function reviewCmd(args: string[]) {
       case 'quarter':
         from = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
         break;
-      case 'week':
       default:
         from = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
         break;

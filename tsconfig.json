@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "outDir": "./engine/dist",
     "rootDir": ".",
-    "types": ["bun-types"]
+    "types": ["bun"]
   },
-  "include": ["engine/src/**/*.ts"]
+  "include": ["engine/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
 }

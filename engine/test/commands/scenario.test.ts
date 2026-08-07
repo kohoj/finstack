@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { estimateImpact, SCENARIOS } from '../../src/commands/scenario';
 
 describe('estimateImpact', () => {
@@ -22,18 +22,20 @@ describe('estimateImpact', () => {
     const jpm = result.positions.find(p => p.ticker === 'JPM');
     expect(nvda!.sectorETF).toBe('XLK');
     expect(jpm!.sectorETF).toBe('XLF');
-    expect(nvda!.estimatedReturn).toBe(-0.10);
+    expect(nvda!.estimatedReturn).toBe(-0.1);
     expect(jpm!.estimatedReturn).toBe(0.03);
   });
 
   it('sorts positions worst-first', () => {
     const result = estimateImpact(positions, SCENARIOS['spy-20pct']);
     // All negative, largest position hit worst
-    expect(result.positions[0].impactDollars).toBeLessThanOrEqual(result.positions[1].impactDollars);
+    expect(result.positions[0].impactDollars).toBeLessThanOrEqual(
+      result.positions[1].impactDollars,
+    );
   });
 
   it('handles empty portfolio', () => {
-    const result = estimateImpact([], SCENARIOS['recession']);
+    const result = estimateImpact([], SCENARIOS.recession);
     expect(result.totalImpact).toBe(0);
     expect(result.positions).toEqual([]);
   });

@@ -1,5 +1,5 @@
-import { fetchWithRetry } from '../net';
 import { FinstackError } from '../errors';
+import { fetchWithRetry } from '../net';
 
 const SUBMISSIONS_BASE = 'https://data.sec.gov/submissions/CIK';
 const TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
@@ -21,7 +21,24 @@ export interface FilingResult {
   filings: Filing[];
 }
 
+/**
+ * Ticker -> CIK map, fetched once per process.
+ *
+ * The file is roughly 1MB and changes rarely, so caching it in memory avoids
+ * re-downloading for every filing lookup in a single run.
+ */
 let _tickerMap: Record<string, string> | null = null;
+
+/**
+ * Drop the in-memory CIK map.
+ *
+ * Exists for tests: the map outlives an individual test, so one test's fetch
+ * would satisfy the next one's lookup and hide whether the network path was
+ * actually exercised.
+ */
+export function resetTickerMapCache(): void {
+  _tickerMap = null;
+}
 
 export function padCIK(cik: string): string {
   return cik.padStart(10, '0');
@@ -57,13 +74,18 @@ export function parseFilings(ticker: string, data: any): FilingResult {
 
 async function resolveCIK(ticker: string): Promise<string> {
   if (!_tickerMap) {
-    const res = await fetchWithRetry(TICKERS_URL, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
-    if (!res.ok) throw new FinstackError(
-      `SEC EDGAR unavailable (${res.status})`,
-      'edgar',
-      res.status === 403 ? 'SEC may be restricting access from this region/IP' : `HTTP ${res.status}`,
-      'SEC EDGAR is unavailable in some regions. Use WebSearch for SEC filings instead',
-    );
+    const res = await fetchWithRetry(TICKERS_URL, {
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
+    });
+    if (!res.ok)
+      throw new FinstackError(
+        `SEC EDGAR unavailable (${res.status})`,
+        'edgar',
+        res.status === 403
+          ? 'SEC may be restricting access from this region/IP'
+          : `HTTP ${res.status}`,
+        'SEC EDGAR is unavailable in some regions. Use WebSearch for SEC filings instead',
+      );
     const data = await res.json();
     _tickerMap = {};
     for (const entry of Object.values(data) as any[]) {
@@ -78,13 +100,18 @@ async function resolveCIK(ticker: string): Promise<string> {
 export async function fetchFilings(ticker: string): Promise<FilingResult> {
   const cik = await resolveCIK(ticker);
   const url = `${SUBMISSIONS_BASE}${padCIK(cik)}.json`;
-  const res = await fetchWithRetry(url, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
-  if (!res.ok) throw new FinstackError(
-    `SEC EDGAR failed for ${ticker} (${res.status})`,
-    'edgar',
-    res.status === 403 ? 'SEC may be restricting access from this region/IP' : `HTTP ${res.status}`,
-    'Use WebSearch to find SEC filings: search "SEC EDGAR [ticker] 10-K"',
-  );
+  const res = await fetchWithRetry(url, {
+    headers: { 'User-Agent': UA, Accept: 'application/json' },
+  });
+  if (!res.ok)
+    throw new FinstackError(
+      `SEC EDGAR failed for ${ticker} (${res.status})`,
+      'edgar',
+      res.status === 403
+        ? 'SEC may be restricting access from this region/IP'
+        : `HTTP ${res.status}`,
+      'Use WebSearch to find SEC filings: search "SEC EDGAR [ticker] 10-K"',
+    );
   const data = await res.json();
   return parseFilings(ticker, data);
 }

@@ -8,7 +8,6 @@ allowed-tools:
   - Bash
   - Read
   - Write
-  - WebSearch
 ---
 
 # /screen — Discover
@@ -50,7 +49,8 @@ $F learn search --skill screen --limit 3
 ```
 
 If learnings are returned, use them as context — they contain past errors,
-workarounds, and insights from previous runs of this skill.
+workarounds, and insights from previous runs of this skill. Adapt your
+approach based on what was learned before.
 
 ## Step 0: Understand the Request
 
@@ -96,10 +96,18 @@ Suggest next steps:
 - "/judge [ticker]" for buy/sell verdict
 - Refine filters if too many/few results
 
-## Step 3: Deposit
+## Step 3: Suggest Next Steps
 
-If the user found the screen useful, offer to add interesting tickers to watchlist:
-"Want to add any of these to your watchlist? `/watchlist add [ticker]`"
+Unlike other skills, `/screen` writes nothing to `~/.finstack/` and makes no
+git commit. It is a search, not a decision — there is no judgment to record
+yet. What deserves recording is what the user does with a result, and that
+happens in the skill they go to next.
+
+If a result looks worth pursuing, point at the thing that would record it:
+
+- "Want to add any of these to your watchlist? `/watchlist add [ticker]`"
+- "`/research [ticker]`" for a deep dive on one name
+- "`/judge [ticker]`" if they already have a view and want it tested
 
 ## Learning Deposit
 

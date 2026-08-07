@@ -1,12 +1,12 @@
 // engine/test/security.test.ts
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, rmSync, readFileSync, statSync, writeFileSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { atomicWriteJSON, readJSONSafe } from '../src/fs';
-import { setKey, getKey, listKeys } from '../src/data/keys';
-import { FinstackError, formatErrorJSON } from '../src/errors';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { getKey, listKeys, setKey } from '../src/data/keys';
 import { addToWatchlist } from '../src/data/watchlist';
+import { FinstackError, formatErrorJSON } from '../src/errors';
+import { atomicWriteJSON, readJSONSafe } from '../src/fs';
 
 const TEST_DIR = join(tmpdir(), `finstack-security-test-${Date.now()}`);
 
@@ -105,7 +105,7 @@ describe('atomic write safety', () => {
   it('does not leave tmp files on success', () => {
     const file = join(TEST_DIR, 'test.json');
     atomicWriteJSON(file, { data: 'test' });
-    const files = require('fs').readdirSync(TEST_DIR);
+    const files = require('node:fs').readdirSync(TEST_DIR);
     const tmpFiles = files.filter((f: string) => f.includes('.tmp.'));
     expect(tmpFiles).toHaveLength(0);
   });

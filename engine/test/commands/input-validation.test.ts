@@ -2,16 +2,12 @@
  * Input validation edge case tests.
  * Covers bugs discovered during dogfooding.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, rmSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { calculatePositionSize } from '../../src/commands/risk';
-import {
-  addToWatchlist,
-  tagTicker,
-  untagTicker,
-} from '../../src/data/watchlist';
+import { addToWatchlist, tagTicker } from '../../src/data/watchlist';
 
 const TEST_DIR = join(tmpdir(), `finstack-validation-test-${Date.now()}`);
 const WATCHLIST_FILE = join(TEST_DIR, 'watchlist.json');

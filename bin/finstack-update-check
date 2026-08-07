@@ -33,7 +33,7 @@ if [ -f "$CACHE" ]; then
 fi
 
 # Remote check (5s timeout, fail silently)
-REMOTE_VER=$(curl -sf --max-time 5 "https://raw.githubusercontent.com/kohoj/finstack/master/VERSION" 2>/dev/null || true)
+REMOTE_VER=$(curl -sf --max-time 5 "https://raw.githubusercontent.com/kohoj/finstack/main/VERSION" 2>/dev/null || true)
 [ -z "$REMOTE_VER" ] && exit 0
 REMOTE_VER=$(echo "$REMOTE_VER" | tr -d '[:space:]')
 

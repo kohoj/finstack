@@ -1,0 +1,11 @@
+{
+  "riskBudgetPct": 2,
+  "maxPositionPct": 25,
+  "style": "concentrated growth",
+  "timeHorizon": "12-24 months",
+  "blindSpots": [
+    "Exits winning tech positions early",
+    "Over-weights recent news relative to base rates"
+  ],
+  "updatedAt": "2026-03-01T00:00:00Z"
+}

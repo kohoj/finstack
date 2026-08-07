@@ -38,12 +38,25 @@ const DEFAULT_RETRY: Required<RetryConfig> = {
   timeoutMs: 10_000,
 };
 
+/**
+ * Escape hatch for tests: FINSTACK_NO_BACKOFF=1 collapses retry delays to zero.
+ *
+ * Retry *counts* are unchanged, so the code path under test is the same one
+ * that runs in production — only the sleeping goes away. Without this, every
+ * simulated outage costs 4 seconds of real waiting.
+ */
+function backoffFor(configured: number[]): number[] {
+  return process.env.FINSTACK_NO_BACKOFF === '1' ? configured.map(() => 0) : configured;
+}
+
 export async function fetchWithRetry(
   url: string,
   opts: RequestInit = {},
   config: RetryConfig = {},
 ): Promise<Response> {
-  const { retries, backoffMs, timeoutMs } = { ...DEFAULT_RETRY, ...config };
+  const merged = { ...DEFAULT_RETRY, ...config };
+  const { retries, timeoutMs } = merged;
+  const backoffMs = backoffFor(merged.backoffMs);
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {

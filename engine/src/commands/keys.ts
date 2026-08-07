@@ -1,4 +1,5 @@
-import { getKey, setKey, removeKey, listKeys } from '../data/keys';
+import { isProvider, listKeys, PROVIDERS, removeKey, setKey } from '../data/keys';
+import { FinstackError } from '../errors';
 
 export async function keys(args: string[]) {
   const sub = args[0];
@@ -8,8 +9,20 @@ export async function keys(args: string[]) {
       const provider = args[1];
       const key = args[2];
       if (!provider || !key) {
-        console.error(JSON.stringify({ error: 'Usage: finstack keys set <provider> <key>' }));
-        process.exit(1);
+        throw new FinstackError(
+          'Usage: finstack keys set <provider> <key>',
+          undefined,
+          'Both a provider and a key are required',
+          `Providers: ${PROVIDERS.join(', ')}. Example: finstack keys set fred YOUR_KEY`,
+        );
+      }
+      if (!isProvider(provider)) {
+        throw new FinstackError(
+          `Unknown provider: ${provider}`,
+          undefined,
+          `Supported providers are ${PROVIDERS.join(', ')}`,
+          `Example: finstack keys set fred YOUR_KEY`,
+        );
       }
       setKey(provider, key);
       console.log(JSON.stringify({ message: `Key set for ${provider}` }));
@@ -25,8 +38,12 @@ export async function keys(args: string[]) {
     case 'remove': {
       const provider = args[1];
       if (!provider) {
-        console.error(JSON.stringify({ error: 'Usage: finstack keys remove <provider>' }));
-        process.exit(1);
+        throw new FinstackError(
+          'Usage: finstack keys remove <provider>',
+          undefined,
+          'No provider given',
+          'Run `finstack keys list` to see configured providers',
+        );
       }
       removeKey(provider);
       console.log(JSON.stringify({ message: `Key removed for ${provider}` }));
@@ -34,7 +51,11 @@ export async function keys(args: string[]) {
     }
 
     default:
-      console.error(JSON.stringify({ error: 'Usage: finstack keys set|list|remove' }));
-      process.exit(1);
+      throw new FinstackError(
+        sub ? `Unknown subcommand: ${sub}` : 'Usage: finstack keys set|list|remove',
+        undefined,
+        undefined,
+        'Use set|list|remove',
+      );
   }
 }

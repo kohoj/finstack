@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'bun:test';
-import { calculatePositionAlpha, calculateAggregate, categorizeDeviation } from '../../src/commands/alpha';
+import { describe, expect, it } from 'bun:test';
+import {
+  calculateAggregate,
+  calculatePositionAlpha,
+  categorizeDeviation,
+} from '../../src/commands/alpha';
 
 describe('alpha calculation', () => {
   it('calculates behavioral cost for a single position', () => {

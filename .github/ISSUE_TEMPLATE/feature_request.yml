@@ -1,0 +1,60 @@
+name: Feature request
+description: Propose something finstack should be able to do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check [ROADMAP.md](../blob/main/ROADMAP.md) first — it lists
+        what is planned, and also what is deliberately not planned along with
+        the reasoning.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: |
+        The situation, not the solution. What were you doing when you wanted
+        this, and what did you do instead?
+      placeholder: |
+        I hold positions on the Tokyo exchange. `finstack quote 7203.T` works,
+        but the portfolio treats every price as USD, so total value is wrong.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: |
+        If it is a new command, sketch the invocation and output. If it changes
+        a skill, say which step.
+      placeholder: |
+        finstack portfolio add 7203.T 100 2500 --currency JPY
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Where it belongs
+      description: |
+        The engine handles deterministic data operations; skills handle
+        reasoning. See ARCHITECTURE.md if you are unsure.
+      options:
+        - Engine — a new or changed command
+        - Skill — new or changed reasoning
+        - Both
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you considered instead
+      description: |
+        Including doing nothing. If there is a workaround, say what makes it
+        insufficient.
+    validations:
+      required: false

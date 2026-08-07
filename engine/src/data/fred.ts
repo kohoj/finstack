@@ -1,5 +1,5 @@
-import { getKey } from './keys';
 import { fetchWithRetry } from '../net';
+import { getKey } from './keys';
 
 const BASE = 'https://api.stlouisfed.org/fred/series/observations';
 
@@ -43,7 +43,8 @@ export function parseFredResponse(seriesId: string, data: any): FredObservation 
 
 export async function fetchSeries(seriesId: string, limit = 2): Promise<FredObservation> {
   const apiKey = getKey('fred');
-  if (!apiKey) throw new Error('FRED API key not configured. Run: finstack keys set fred <your-key>');
+  if (!apiKey)
+    throw new Error('FRED API key not configured. Run: finstack keys set fred <your-key>');
 
   const url = `${BASE}?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=${limit}`;
   const res = await fetchWithRetry(url);
@@ -54,7 +55,9 @@ export async function fetchSeries(seriesId: string, limit = 2): Promise<FredObse
   return parseFredResponse(seriesId, data);
 }
 
-export async function fetchMultiple(seriesIds: string[] = [...CORE_SERIES]): Promise<FredObservation[]> {
+export async function fetchMultiple(
+  seriesIds: string[] = [...CORE_SERIES],
+): Promise<FredObservation[]> {
   const results = await Promise.allSettled(seriesIds.map(id => fetchSeries(id)));
   return results
     .filter((r): r is PromiseFulfilledResult<FredObservation> => r.status === 'fulfilled')

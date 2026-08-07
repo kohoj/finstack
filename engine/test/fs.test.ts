@@ -1,9 +1,17 @@
 // engine/test/fs.test.ts
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { atomicWriteJSON, readJSONSafe } from '../src/fs';
-import { existsSync, readFileSync, mkdirSync, rmSync, statSync, writeFileSync, readdirSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { atomicWriteJSON, readJSONSafe, withFileLock } from '../src/fs';
 
 const TEST_DIR = join(tmpdir(), `finstack-fs-test-${Date.now()}`);
 
@@ -85,5 +93,73 @@ describe('readJSONSafe', () => {
     writeFileSync(file, 'not json{{{');
     const result = readJSONSafe(file, []);
     expect(result).toEqual([]);
+  });
+});
+
+describe('withFileLock', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('returns the callback result', () => {
+    const file = join(TEST_DIR, 'locked.json');
+    expect(withFileLock(file, () => 42)).toBe(42);
+  });
+
+  it('releases the lock after a successful call', () => {
+    const file = join(TEST_DIR, 'locked.json');
+    withFileLock(file, () => 'ok');
+    expect(existsSync(`${file}.lock`)).toBe(false);
+  });
+
+  // Regression: the original implementation wrapped mkdir and fn() in one try,
+  // so a throw from fn() was indistinguishable from lock contention. The loop
+  // retried, calling fn() once per attempt until the deadline — running a
+  // side-effecting mutation many times before finally surfacing the error.
+  it('runs the callback exactly once when it throws', () => {
+    const file = join(TEST_DIR, 'locked.json');
+    let calls = 0;
+
+    expect(() =>
+      withFileLock(
+        file,
+        () => {
+          calls++;
+          throw new Error('business failure');
+        },
+        300,
+      ),
+    ).toThrow('business failure');
+
+    expect(calls).toBe(1);
+  });
+
+  it('releases the lock when the callback throws', () => {
+    const file = join(TEST_DIR, 'locked.json');
+    expect(() =>
+      withFileLock(file, () => {
+        throw new Error('boom');
+      }),
+    ).toThrow('boom');
+    expect(existsSync(`${file}.lock`)).toBe(false);
+  });
+
+  it('breaks a stale lock rather than hanging forever', () => {
+    const file = join(TEST_DIR, 'locked.json');
+    // Simulate a lock left behind by a killed process.
+    mkdirSync(`${file}.lock`);
+
+    const start = Date.now();
+    const result = withFileLock(file, () => 'recovered', 200);
+    const elapsed = Date.now() - start;
+
+    expect(result).toBe('recovered');
+    // Waited for the deadline, then proceeded — did not block indefinitely.
+    expect(elapsed).toBeGreaterThanOrEqual(150);
+    expect(elapsed).toBeLessThan(2000);
   });
 });

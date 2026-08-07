@@ -1,31 +1,32 @@
 #!/usr/bin/env bun
 
-import { quote } from './commands/quote';
-import { financials } from './commands/financials';
-import { scan } from './commands/scan';
-import { regime } from './commands/regime';
-import { portfolio } from './commands/portfolio';
-import { keys } from './commands/keys';
-import { macro } from './commands/macro';
-import { filing } from './commands/filing';
-import { history } from './commands/history';
-import { earnings } from './commands/earnings';
-import { alpha } from './commands/alpha';
-import { thesis } from './commands/thesis';
-import { risk } from './commands/risk';
-import { watchlist } from './commands/watchlist';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { alerts } from './commands/alerts';
+import { alpha } from './commands/alpha';
+import { backtest } from './commands/backtest';
 import { calendar } from './commands/calendar';
-import { screen } from './commands/screen';
+import { correlate } from './commands/correlate';
+import { earnings } from './commands/earnings';
+import { filing } from './commands/filing';
+import { financials } from './commands/financials';
+import { history } from './commands/history';
+import { keys } from './commands/keys';
 import { learn } from './commands/learn';
+import { macro } from './commands/macro';
+import { portfolio } from './commands/portfolio';
+import { quote } from './commands/quote';
+import { regime } from './commands/regime';
 import { report } from './commands/report';
 import { reviewCmd } from './commands/review-cmd';
-import { backtest } from './commands/backtest';
-import { correlate } from './commands/correlate';
+import { risk } from './commands/risk';
+import { scan } from './commands/scan';
 import { scenario } from './commands/scenario';
-import { formatErrorJSON, FinstackError } from './errors';
-import { existsSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { screen } from './commands/screen';
+import { shadow } from './commands/shadow';
+import { thesis } from './commands/thesis';
+import { watchlist } from './commands/watchlist';
+import { FinstackError, formatErrorJSON } from './errors';
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   quote,
@@ -51,6 +52,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   backtest,
   correlate,
   scenario,
+  shadow,
 };
 
 function checkVersion() {
@@ -61,12 +63,14 @@ function checkVersion() {
     const builtHash = readFileSync(versionFile, 'utf-8').trim();
     if (builtHash === 'dev') return;
 
-    const { execSync } = require('child_process');
+    const { execSync } = require('node:child_process');
     const srcDir = join(distDir, '..', '..');
     const currentHash = execSync('git rev-parse HEAD', { cwd: srcDir, encoding: 'utf-8' }).trim();
 
     if (builtHash !== currentHash) {
-      console.error(`warning: engine binary outdated (built: ${builtHash.slice(0, 7)}, current: ${currentHash.slice(0, 7)}). Run: bun run build`);
+      console.error(
+        `warning: engine binary outdated (built: ${builtHash.slice(0, 7)}, current: ${currentHash.slice(0, 7)}). Run: bun run build`,
+      );
     }
   } catch {
     // Version check is best-effort, never block
@@ -92,7 +96,8 @@ Commands:
   history <ticker> [--from --to]         Historical price data
   earnings <ticker> [--upcoming]         Earnings history + upcoming date
   alpha [--last N]                       Cognitive alpha calculation
-  thesis list|check|kill|history         Thesis lifecycle management
+  thesis add|list|check|threaten|kill    Thesis lifecycle (add reads JSON on stdin)
+  shadow add|close|show                  Shadow portfolio (add reads JSON on stdin)
   risk [size <ticker> <entry> <stop>]    Portfolio risk + position sizing
   watchlist [add|remove|tag|untag]       Watchlist management
   alerts [--due N] [--source S]          Check pending alerts
@@ -115,14 +120,16 @@ Cache: ~/.finstack/cache/
 
   const fn = commands[command];
   if (!fn) {
-    console.error(formatErrorJSON(
-      new FinstackError(
-        `Unknown command: ${command}`,
-        undefined,
-        undefined,
-        `Run 'finstack help' for available commands`,
-      )
-    ));
+    console.error(
+      formatErrorJSON(
+        new FinstackError(
+          `Unknown command: ${command}`,
+          undefined,
+          undefined,
+          `Run 'finstack help' for available commands`,
+        ),
+      ),
+    );
     process.exit(1);
   }
 

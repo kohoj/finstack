@@ -1,0 +1,81 @@
+name: Bug report
+description: Something behaves differently than documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: run `bun run test:gate`. If it fails on a clean
+        checkout, that output is the most useful thing you can include.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: |
+        Include the command you ran and its full output. If a command failed,
+        paste the JSON error — it carries a `source`, `reason`, and
+        `suggestion` that usually locate the problem.
+      placeholder: |
+        $ finstack quote NVDA
+        {"error":"Cannot fetch quote for NVDA","source":"yahoo",...}
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: If a document says otherwise, quote it — that is a bug too.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: |
+        The smallest sequence that shows it. If state matters, say what was in
+        the portfolio or watchlist first.
+      placeholder: |
+        1. finstack portfolio init
+        2. finstack portfolio add NVDA 10 800
+        3. finstack alpha
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Output of the commands below.
+      value: |
+        finstack version: <cat VERSION>
+        bun --version:
+        OS:
+        Installed via: ./setup | manual
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Which layer
+      description: A guess is fine.
+      options:
+        - Engine command (finstack <something>)
+        - Skill behavior (/sense, /judge, ...)
+        - Setup or installation
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: data-check
+    attributes:
+      label: Before you post
+      options:
+        - label: I have removed any API keys, positions, or personal financial data from the output above
+          required: true

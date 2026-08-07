@@ -9,11 +9,8 @@ allowed-tools:
   - Bash
   - Read
   - Write
-  - WebSearch
-  - WebFetch
   - Glob
-  - Grep
-  - AskUserQuestion
+  - WebSearch
 ---
 
 # /track — Quantified Mirror

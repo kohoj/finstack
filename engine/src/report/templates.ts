@@ -3,9 +3,9 @@ import type { ChartConfig } from './charts';
 
 interface ReportSection {
   title: string;
-  content: string;        // raw HTML
-  chart?: ChartConfig;    // optional chart
-  chartId?: string;       // canvas element id
+  content: string; // raw HTML
+  chart?: ChartConfig; // optional chart
+  chartId?: string; // canvas element id
 }
 
 export function renderReport(opts: {
@@ -19,12 +19,16 @@ export function renderReport(opts: {
     .map(s => `new Chart(document.getElementById('${s.chartId}'), ${JSON.stringify(s.chart)});`)
     .join('\n    ');
 
-  const sectionsHtml = opts.sections.map(s => `
+  const sectionsHtml = opts.sections
+    .map(
+      s => `
   <section class="mb-8">
     <h2 class="text-xl font-semibold text-gray-200 mb-4">${s.title}</h2>
     ${s.chart && s.chartId ? `<div class="bg-gray-900 rounded-lg p-4 mb-4"><canvas id="${s.chartId}"></canvas></div>` : ''}
     <div class="text-gray-300">${s.content}</div>
-  </section>`).join('\n');
+  </section>`,
+    )
+    .join('\n');
 
   return `<!DOCTYPE html>
 <html lang="en">

@@ -1,0 +1,40 @@
+{
+  "entries": [
+    {
+      "id": "s_test1",
+      "ticker": "NVDA",
+      "action": "buy",
+      "entryDate": "2026-01-15",
+      "totalShares": 50,
+      "stagedPlan": [
+        {
+          "tranche": 1,
+          "shares": 25,
+          "trigger": "immediate",
+          "status": "filled",
+          "fillPrice": 845
+        },
+        {
+          "tranche": 2,
+          "shares": 25,
+          "trigger": "pullback to 800",
+          "triggerPrice": 800,
+          "status": "filled",
+          "fillPrice": 805
+        }
+      ],
+      "filledShares": 50,
+      "stopLoss": { "price": 720, "reason": "Below the January consolidation low" },
+      "takeProfit": { "price": 1100, "reason": "Prior resistance plus 30% target" },
+      "timeHorizon": "2026-12-31",
+      "linkedThesis": "t_test1",
+      "sourceJudge": "journal/NVDA-2026-01-14.md",
+      "sourceAct": "journal/act-NVDA-2026-01-15.md",
+      "createdAt": "2026-01-15T00:00:00Z",
+      "status": "open",
+      "exitPrice": null,
+      "exitDate": null,
+      "exitReason": null
+    }
+  ]
+}

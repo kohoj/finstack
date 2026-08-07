@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { atomicWriteJSON } from '../../src/fs';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { aggregateReview } from '../../src/commands/review-cmd';
+import { atomicWriteJSON } from '../../src/fs';
 
 const TEST_DIR = join(tmpdir(), `finstack-review-test-${Date.now()}`);
 
@@ -31,8 +31,30 @@ describe('aggregateReview', () => {
   it('counts new theses in period', () => {
     atomicWriteJSON(join(TEST_DIR, 'theses.json'), {
       theses: [
-        { id: 't1', ticker: 'NVDA', status: 'alive', createdAt: '2026-04-03T10:00:00Z', conditions: [], statusHistory: [], thesis: '', verdict: '', lastChecked: '', obituaryDueDate: null },
-        { id: 't2', ticker: 'AMD', status: 'alive', createdAt: '2026-03-15T10:00:00Z', conditions: [], statusHistory: [], thesis: '', verdict: '', lastChecked: '', obituaryDueDate: null },
+        {
+          id: 't1',
+          ticker: 'NVDA',
+          status: 'alive',
+          createdAt: '2026-04-03T10:00:00Z',
+          conditions: [],
+          statusHistory: [],
+          thesis: '',
+          verdict: '',
+          lastChecked: '',
+          obituaryDueDate: null,
+        },
+        {
+          id: 't2',
+          ticker: 'AMD',
+          status: 'alive',
+          createdAt: '2026-03-15T10:00:00Z',
+          conditions: [],
+          statusHistory: [],
+          thesis: '',
+          verdict: '',
+          lastChecked: '',
+          obituaryDueDate: null,
+        },
       ],
     });
 
@@ -57,8 +79,8 @@ describe('aggregateReview', () => {
       journalDir: join(TEST_DIR, 'journal'),
     });
     expect(result.journalEntries).toBe(2);
-    expect(result.journalByType['sense']).toBe(1);
-    expect(result.journalByType['NVDA']).toBe(1);
+    expect(result.journalByType.sense).toBe(1);
+    expect(result.journalByType.NVDA).toBe(1);
   });
 
   it('sets period correctly', () => {

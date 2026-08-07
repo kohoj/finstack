@@ -1,7 +1,8 @@
-import { getUniverse, parseCustomUniverse } from '../data/universe';
-import { getPreset } from '../data/presets';
 import { getCached, setCache } from '../cache';
+import { getPreset } from '../data/presets';
+import { getUniverse, parseCustomUniverse } from '../data/universe';
 import { FinstackError } from '../errors';
+import { validatePositiveInt } from '../validation';
 
 interface ScreenFilter {
   field: string;
@@ -13,15 +14,13 @@ export function parseFilters(query: string): ScreenFilter[] {
   const filters: ScreenFilter[] = [];
   // Match patterns like: fieldName>value, fieldName<=value, sector=Technology
   const regex = /(\w+)(>=|<=|!=|>|<|=)(\S+)/g;
-  let match;
-  while ((match = regex.exec(query)) !== null) {
-    const [, field, op, rawValue] = match;
+  for (const [, field, op, rawValue] of query.matchAll(regex)) {
     // Try to parse as number (including scientific notation)
     const numValue = Number(rawValue);
     filters.push({
       field,
       op: op as ScreenFilter['op'],
-      value: isNaN(numValue) ? rawValue : numValue,
+      value: Number.isNaN(numValue) ? rawValue : numValue,
     });
   }
   return filters;
@@ -36,22 +35,31 @@ function matchesFilter(data: Record<string, any>, filter: ScreenFilter): boolean
     const strVal = String(val).toLowerCase();
     const filterVal = filter.value.toLowerCase();
     switch (filter.op) {
-      case '=': return strVal === filterVal;
-      case '!=': return strVal !== filterVal;
-      default: return false;
+      case '=':
+        return strVal === filterVal;
+      case '!=':
+        return strVal !== filterVal;
+      default:
+        return false;
     }
   }
 
   // Numeric comparison
   const numVal = Number(val);
-  if (isNaN(numVal)) return false;
+  if (Number.isNaN(numVal)) return false;
   switch (filter.op) {
-    case '>': return numVal > filter.value;
-    case '<': return numVal < filter.value;
-    case '>=': return numVal >= filter.value;
-    case '<=': return numVal <= filter.value;
-    case '=': return numVal === filter.value;
-    case '!=': return numVal !== filter.value;
+    case '>':
+      return numVal > filter.value;
+    case '<':
+      return numVal < filter.value;
+    case '>=':
+      return numVal >= filter.value;
+    case '<=':
+      return numVal <= filter.value;
+    case '=':
+      return numVal === filter.value;
+    case '!=':
+      return numVal !== filter.value;
   }
 }
 
@@ -72,7 +80,12 @@ async function fetchFinancialsForTicker(ticker: string): Promise<Record<string, 
   // Fetch from Yahoo
   try {
     const { fetchQuoteSummary, extractFinancials } = await import('../data/yahoo');
-    const raw = await fetchQuoteSummary(ticker, ['financialData', 'defaultKeyStatistics', 'price', 'assetProfile']);
+    const raw = await fetchQuoteSummary(ticker, [
+      'financialData',
+      'defaultKeyStatistics',
+      'price',
+      'assetProfile',
+    ]);
     const data = extractFinancials(raw);
     if (data) {
       setCache(cacheKey, data);
@@ -89,15 +102,29 @@ export async function screen(args: string[]) {
   const universeArg = parseFlag(args, '--universe');
   const sortField = parseFlag(args, '--sort');
   const limitStr = parseFlag(args, '--limit');
-  const limit = limitStr ? parseInt(limitStr) : 20;
+  const limit = limitStr ? validatePositiveInt(limitStr, 'limit') : 20;
 
   // Build query from preset + inline filters
-  const inlineQuery = args.filter(a => !a.startsWith('--') && a !== presetName && a !== universeArg && a !== sortField && a !== limitStr).join(' ');
+  const inlineQuery = args
+    .filter(
+      a =>
+        !a.startsWith('--') &&
+        a !== presetName &&
+        a !== universeArg &&
+        a !== sortField &&
+        a !== limitStr,
+    )
+    .join(' ');
   let query = '';
   if (presetName) {
     const preset = getPreset(presetName);
     if (!preset) {
-      throw new FinstackError(`Unknown preset: ${presetName}`, undefined, undefined, 'Available: growth, value, dividend');
+      throw new FinstackError(
+        `Unknown preset: ${presetName}`,
+        undefined,
+        undefined,
+        'Available: growth, value, dividend',
+      );
     }
     query = preset;
   }
@@ -106,13 +133,22 @@ export async function screen(args: string[]) {
   }
 
   if (!query) {
-    console.error(JSON.stringify({ error: 'Usage: finstack screen "<filters>" [--preset <name>] [--universe <tickers>] [--sort <field>] [--limit <n>]' }));
-    process.exit(1);
+    throw new FinstackError(
+      'Usage: finstack screen "<filters>" [--preset <name>] [--universe <tickers>] [--sort <field>] [--limit <n>]',
+      undefined,
+      'No filter expression provided',
+      'Example: finstack screen "marketCap>10e9 grossMargin>0.3"',
+    );
   }
 
   const filters = parseFilters(query);
   if (filters.length === 0) {
-    throw new FinstackError('No valid filters parsed', undefined, undefined, 'Example: finstack screen "marketCap>10e9 grossMargin>0.3"');
+    throw new FinstackError(
+      'No valid filters parsed',
+      undefined,
+      undefined,
+      'Example: finstack screen "marketCap>10e9 grossMargin>0.3"',
+    );
   }
 
   // Determine universe
@@ -131,14 +167,14 @@ export async function screen(args: string[]) {
   for (let i = 0; i < tickers.length; i += batchSize) {
     const batch = tickers.slice(i, i + batchSize);
     const entries = await Promise.all(
-      batch.map(async (ticker) => {
+      batch.map(async ticker => {
         try {
           return await fetchFinancialsForTicker(ticker);
         } catch {
           errors.push(ticker);
           return null;
         }
-      })
+      }),
     );
 
     for (const entry of entries) {
@@ -164,14 +200,20 @@ export async function screen(args: string[]) {
 
   const limited = results.slice(0, limit);
 
-  console.log(JSON.stringify({
-    query,
-    universe: universeArg || 'sp500+nasdaq100',
-    scanned: tickers.length,
-    matched: results.length,
-    showing: limited.length,
-    results: limited,
-    errors: errors.length > 0 ? errors : undefined,
-    note: 'Based on cached data. Some entries may be up to 1 hour old.',
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        query,
+        universe: universeArg || 'sp500+nasdaq100',
+        scanned: tickers.length,
+        matched: results.length,
+        showing: limited.length,
+        results: limited,
+        errors: errors.length > 0 ? errors : undefined,
+        note: 'Based on cached data. Some entries may be up to 1 hour old.',
+      },
+      null,
+      2,
+    ),
+  );
 }

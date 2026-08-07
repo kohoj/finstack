@@ -11,12 +11,8 @@ allowed-tools:
   - Read
   - Write
   - Glob
-  - Grep
   - WebSearch
   - WebFetch
-  - TaskCreate
-  - TaskUpdate
-  - AskUserQuestion
 ---
 
 # /judge — Adversarial Investment Judgment
@@ -235,28 +231,60 @@ This creates an auditable decision history for `/reflect`.
 
 ## Step 6: Thesis Registration
 
-After depositing to journal, automatically register the thesis:
+After depositing to journal, register the thesis so `/sense` can monitor it.
 
-1. Extract conditions from the conditional confidence map in your verdict.
-   Each "if X then Y" becomes a tracked condition.
-2. Determine condition types:
-   - Specific quantitative thresholds (e.g., "Q2 EPS > $1.50") → `earnings` type
-     with metric, operator, threshold, resolveBy date
-   - Event-based conditions (e.g., "no cloud provider cuts capex") → `event` type
-     with a natural language `falsificationTest` and `watchTickers`
-3. Read existing `~/.finstack/theses.json` (create if missing with `{"theses":[]}`)
-4. Append a new thesis object:
-   - `id`: `t` + timestamp
-   - `ticker`: the ticker being judged
-   - `thesis`: one-line summary of the investment thesis
-   - `verdict`: your verdict
-   - `status`: `alive`
-   - `statusHistory`: `[{ date, from: null, to: "alive", reason: "Registered from /judge" }]`
-   - Each condition gets `id`: `c` + counter, `status`: `pending`
-   - For earnings conditions: `metric`, `operator`, `threshold`, `resolveBy`
-   - For event conditions: `falsificationTest` (natural language question Claude can evaluate), `watchTickers`, `threats: []`
-5. Write back to theses.json
-6. Brief confirmation: `Thesis registered: "<thesis>" — N conditions tracked`
+**Extract the conditions from your conditional confidence map.** Each "if X
+then Y" in the verdict becomes one tracked condition. This is the step that
+makes Step 4's format matter: a verdict written as a score cannot be converted
+into anything monitorable, but a verdict written as if/then can.
+
+Classify each one:
+
+- A quantitative threshold that resolves on a known date → `earnings`.
+  Needs `metric`, `operator`, `threshold`, and `resolveBy`.
+- A qualitative claim that could be contradicted by news → `event`.
+  Needs a `falsificationTest` — a question with a yes/no answer — and the
+  `watchTickers` whose news would answer it.
+
+Compose the thesis as JSON and pipe it to the engine:
+
+```bash
+echo '{
+  "ticker": "NVDA",
+  "thesis": "One paragraph. The claim, not a summary of the debate.",
+  "verdict": "The conditional verdict from Step 3.",
+  "conditions": [
+    {
+      "description": "Q2 gross margin stays above 70%",
+      "type": "earnings",
+      "metric": "grossMargin",
+      "operator": ">",
+      "threshold": 0.7,
+      "resolveBy": "2026-08-20"
+    },
+    {
+      "description": "No top-4 hyperscaler cuts capex guidance",
+      "type": "event",
+      "falsificationTest": "Has any top-4 hyperscaler guided capex down more than 10%?",
+      "watchTickers": ["MSFT", "GOOGL", "AMZN", "META"]
+    }
+  ]
+}' | $F thesis add
+```
+
+Ids, timestamps, and status history are assigned by the engine — supply only
+the content.
+
+The document is validated before it is written. If it is rejected, the error
+names the field and what was wrong; fix that field and retry. Run
+`$F thesis add --schema` for the full shape.
+
+**At least one condition is required.** A thesis with nothing that could
+falsify it is an opinion, and `/sense` would have nothing to watch. If the
+verdict genuinely has no testable condition, that is a signal the analysis is
+not finished — say so rather than inventing one.
+
+Confirm briefly: `Thesis registered: "<thesis>" — N conditions tracked`
 
 ## Natural Flow
 

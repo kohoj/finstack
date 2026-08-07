@@ -1,13 +1,9 @@
-import { fetchFilings } from '../data/edgar';
 import { getCached, setCache } from '../cache';
-import { FinstackError } from '../errors';
+import { fetchFilings } from '../data/edgar';
+import { validateTicker } from '../validation';
 
 export async function filing(args: string[]) {
-  const ticker = args[0]?.toUpperCase();
-  if (!ticker) {
-    console.error(JSON.stringify({ error: 'Usage: finstack filing <ticker>' }));
-    process.exit(1);
-  }
+  const ticker = validateTicker(args[0]);
 
   const cacheKey = `filing-${ticker}`;
   const cached = getCached(cacheKey, 'filing');

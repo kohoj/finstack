@@ -1,8 +1,9 @@
 // engine/src/commands/calendar.ts
-import { PORTFOLIO_FILE, WATCHLIST_FILE } from '../paths';
-import { readJSONSafe } from '../fs';
+
 import { getCached, setCache } from '../cache';
-import { FinstackError } from '../errors';
+import { readJSONSafe } from '../fs';
+import { paths } from '../paths';
+import { validatePositiveInt } from '../validation';
 
 interface CalendarEntry {
   ticker: string;
@@ -52,22 +53,30 @@ async function fetchUpcomingEarnings(ticker: string): Promise<CalendarEntry | nu
 
 export async function calendar(args: string[]) {
   const rangeStr = parseFlag(args, '--range');
-  const range = rangeStr ? parseInt(rangeStr) : 30;
+  const range = rangeStr ? validatePositiveInt(rangeStr, 'range') : 30;
 
   // Collect tickers from portfolio + watchlist
-  const portfolio = readJSONSafe<{ positions: { ticker: string }[] }>(PORTFOLIO_FILE, { positions: [] });
-  const watchlist = readJSONSafe<{ ticker: string }[]>(WATCHLIST_FILE, []);
+  const portfolio = readJSONSafe<{ positions: { ticker: string }[] }>(paths.PORTFOLIO_FILE, {
+    positions: [],
+  });
+  const watchlist = readJSONSafe<{ ticker: string }[]>(paths.WATCHLIST_FILE, []);
 
   const portfolioTickers = new Set(portfolio.positions.map(p => p.ticker));
   const watchlistTickers = new Set(watchlist.map(w => w.ticker));
   const allTickers = [...new Set([...portfolioTickers, ...watchlistTickers])];
 
   if (allTickers.length === 0) {
-    console.log(JSON.stringify({
-      message: 'No tickers to check. Add positions or watchlist entries first.',
-      calendar: [],
-      count: 0,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          message: 'No tickers to check. Add positions or watchlist entries first.',
+          calendar: [],
+          count: 0,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -78,7 +87,7 @@ export async function calendar(args: string[]) {
     const batch = allTickers.slice(i, i + batchSize);
     const entries = await Promise.all(batch.map(fetchUpcomingEarnings));
     for (const entry of entries) {
-      if (entry && entry.earningsDate) {
+      if (entry?.earningsDate) {
         entry.inPortfolio = portfolioTickers.has(entry.ticker);
         entry.inWatchlist = watchlistTickers.has(entry.ticker);
         results.push(entry);
@@ -91,17 +100,25 @@ export async function calendar(args: string[]) {
   now.setHours(0, 0, 0, 0);
   const cutoff = new Date(now.getTime() + range * 86400000);
 
-  const filtered = results.filter(e => {
-    if (!e.earningsDate) return false;
-    const d = new Date(e.earningsDate);
-    return d >= now && d <= cutoff;
-  }).sort((a, b) => {
-    return new Date(a.earningsDate!).getTime() - new Date(b.earningsDate!).getTime();
-  });
+  const filtered = results
+    .filter(e => {
+      if (!e.earningsDate) return false;
+      const d = new Date(e.earningsDate);
+      return d >= now && d <= cutoff;
+    })
+    .sort((a, b) => {
+      return new Date(a.earningsDate!).getTime() - new Date(b.earningsDate!).getTime();
+    });
 
-  console.log(JSON.stringify({
-    range: `${range} days`,
-    calendar: filtered,
-    count: filtered.length,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        range: `${range} days`,
+        calendar: filtered,
+        count: filtered.length,
+      },
+      null,
+      2,
+    ),
+  );
 }

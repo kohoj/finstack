@@ -42,6 +42,9 @@ bun build --compile engine/src/cli.ts --outfile engine/dist/finstack
 git rev-parse HEAD > engine/dist/.version 2>/dev/null || echo "dev" > engine/dist/.version
 echo "  ✓ engine/dist/finstack"
 
+# ── Install git hooks (no-op outside a git working tree) ──
+"$SCRIPT_DIR/bin/finstack-install-hooks"
+
 # ── Create data directory ──
 echo "Setting up data directory..."
 mkdir -p "$FINSTACK_DATA"/{journal,patterns,cache,reports,sessions}

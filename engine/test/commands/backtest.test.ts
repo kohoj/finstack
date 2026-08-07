@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { buildBacktestResult } from '../../src/commands/backtest';
 
 const mockThesis = {
@@ -8,12 +8,36 @@ const mockThesis = {
   verdict: 'buy',
   status: 'dead' as const,
   conditions: [
-    { id: 'c1', description: 'Q2 gross margin > 60%', type: 'earnings' as const, metric: 'grossMargin', operator: '>' as const, threshold: 0.6, resolveBy: '2026-07-23', status: 'passed' as const, actualValue: 0.65, resolvedAt: '2026-07-23' },
-    { id: 'c2', description: 'No capex cuts', type: 'event' as const, falsificationTest: 'Will NVDA cut capex?', watchTickers: ['NVDA'], status: 'pending' as const, threats: [] },
+    {
+      id: 'c1',
+      description: 'Q2 gross margin > 60%',
+      type: 'earnings' as const,
+      metric: 'grossMargin',
+      operator: '>' as const,
+      threshold: 0.6,
+      resolveBy: '2026-07-23',
+      status: 'passed' as const,
+      actualValue: 0.65,
+      resolvedAt: '2026-07-23',
+    },
+    {
+      id: 'c2',
+      description: 'No capex cuts',
+      type: 'event' as const,
+      falsificationTest: 'Will NVDA cut capex?',
+      watchTickers: ['NVDA'],
+      status: 'pending' as const,
+      threats: [],
+    },
   ],
   statusHistory: [
     { date: '2026-01-01T00:00:00Z', from: null, to: 'alive' as const, reason: 'Registered' },
-    { date: '2026-04-01T00:00:00Z', from: 'alive' as const, to: 'dead' as const, reason: 'Killed by user' },
+    {
+      date: '2026-04-01T00:00:00Z',
+      from: 'alive' as const,
+      to: 'dead' as const,
+      reason: 'Killed by user',
+    },
   ],
   createdAt: '2026-01-01T00:00:00Z',
   lastChecked: '2026-04-01T00:00:00Z',
@@ -27,7 +51,16 @@ const mockShadow = {
   entryDate: '2026-01-02',
   totalShares: 100,
   filledShares: 100,
-  stagedPlan: [{ tranche: 1, shares: 100, trigger: 'immediate', status: 'filled' as const, fillPrice: 800, fillDate: '2026-01-02' }],
+  stagedPlan: [
+    {
+      tranche: 1,
+      shares: 100,
+      trigger: 'immediate',
+      status: 'filled' as const,
+      fillPrice: 800,
+      fillDate: '2026-01-02',
+    },
+  ],
   stopLoss: { price: 700, reason: 'thesis break' },
   takeProfit: { price: 1000, reason: 'target' },
   timeHorizon: '2026-07-01',

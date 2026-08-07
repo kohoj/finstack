@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build (must already exist)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  # Never publish something that does not pass the same gate as a PR.
+  verify:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run check:docs
+
+  build:
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            asset: finstack-linux-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            asset: finstack-macos-arm64
+          - os: macos-latest
+            target: bun-darwin-x64
+            asset: finstack-macos-x64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Build ${{ matrix.asset }}
+        run: |
+          bun build --compile --target=${{ matrix.target }} \
+            engine/src/cli.ts --outfile ${{ matrix.asset }}
+
+      # A binary that cannot print its own help is not worth publishing.
+      # Only the native build is runnable on this host.
+      - name: Smoke test
+        if: matrix.target != 'bun-darwin-x64' || runner.arch == 'X64'
+        run: ./${{ matrix.asset }} help | grep -q "Commands:"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # Pull this version's section out of CHANGELOG.md so release notes and
+      # the changelog cannot disagree.
+      - name: Extract release notes
+        id: notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${VERSION:-${{ github.event.inputs.tag }}}"
+          VERSION="${VERSION#v}"
+
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG section for [$VERSION]" >&2
+            exit 1
+          fi
+
+      - name: Checksums
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: artifacts/*
+          fail_on_unmatched_files: true

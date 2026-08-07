@@ -1,6 +1,6 @@
-import { CONSENSUS_FILE } from '../paths';
-import { atomicWriteJSON, readJSONSafe } from '../fs';
 import { FinstackError } from '../errors';
+import { atomicWriteJSON, readJSONSafe, withFileLock } from '../fs';
+import { paths } from '../paths';
 
 interface Assumption {
   id: string;
@@ -13,11 +13,25 @@ interface Assumption {
 }
 
 function load(): Assumption[] {
-  return readJSONSafe<Assumption[]>(CONSENSUS_FILE, []);
+  return readJSONSafe<Assumption[]>(paths.CONSENSUS_FILE, []);
 }
 
 function save(data: Assumption[]) {
-  atomicWriteJSON(CONSENSUS_FILE, data);
+  atomicWriteJSON(paths.CONSENSUS_FILE, data);
+}
+
+/**
+ * Read-modify-write consensus.json under a file lock. /sense updates
+ * assumptions while the user may be running `regime update` by hand, so the
+ * whole cycle must be serialized.
+ */
+function mutate<T>(fn: (assumptions: Assumption[]) => T): T {
+  return withFileLock(paths.CONSENSUS_FILE, () => {
+    const assumptions = load();
+    const result = fn(assumptions);
+    save(assumptions);
+    return result;
+  });
 }
 
 export async function regime(args: string[]) {
@@ -33,44 +47,70 @@ export async function regime(args: string[]) {
     case 'add': {
       const text = args.slice(1).join(' ');
       if (!text) {
-        console.error(JSON.stringify({ error: 'Usage: finstack regime add <assumption text>' }));
-        process.exit(1);
+        throw new FinstackError(
+          'Usage: finstack regime add <assumption text>',
+          undefined,
+          'No assumption text provided',
+          'Example: finstack regime add "AI capex growth continues through 2027"',
+        );
       }
-      const assumptions = load();
-      const newItem: Assumption = {
-        id: `a${Date.now()}`,
-        assumption: text,
-        confidence: 5,
-        trend: 'stable',
-        history: [{ date: new Date().toISOString(), confidence: 5, event: 'Initial entry' }],
-        portfolioExposure: [],
-        updatedAt: new Date().toISOString(),
-      };
-      assumptions.push(newItem);
-      save(assumptions);
+      const newItem = mutate(assumptions => {
+        // Date.now() alone collides when two adds land in the same millisecond,
+        // which parallel skill invocations do. Suffix with a short random tag.
+        const item: Assumption = {
+          id: `a${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+          assumption: text,
+          confidence: 5,
+          trend: 'stable',
+          history: [{ date: new Date().toISOString(), confidence: 5, event: 'Initial entry' }],
+          portfolioExposure: [],
+          updatedAt: new Date().toISOString(),
+        };
+        assumptions.push(item);
+        return item;
+      });
       console.log(JSON.stringify(newItem, null, 2));
       break;
     }
 
     case 'update': {
       const id = args[1];
-      const confidence = parseInt(args[2]);
+      const confidence = parseInt(args[2], 10);
       const event = args.slice(3).join(' ') || 'Manual update';
-      if (!id || isNaN(confidence)) {
-        console.error(JSON.stringify({ error: 'Usage: finstack regime update <id> <confidence> [event]' }));
-        process.exit(1);
+      if (!id || Number.isNaN(confidence)) {
+        throw new FinstackError(
+          'Usage: finstack regime update <id> <confidence> [event]',
+          undefined,
+          'Assumption id and a numeric confidence (0-10) are required',
+          'Run `finstack regime list` to see ids, then: finstack regime update a123 4 "TSMC capex cut"',
+        );
       }
-      const assumptions = load();
-      const item = assumptions.find(a => a.id === id);
-      if (!item) {
-        throw new FinstackError(`Assumption ${id} not found`);
-      }
-      const prevConfidence = item.confidence;
-      item.confidence = Math.max(0, Math.min(10, confidence));
-      item.trend = confidence > prevConfidence ? 'rising' : confidence < prevConfidence ? 'declining' : item.trend;
-      item.history.push({ date: new Date().toISOString(), confidence: item.confidence, event });
-      item.updatedAt = new Date().toISOString();
-      save(assumptions);
+      const item = mutate(assumptions => {
+        const found = assumptions.find(a => a.id === id);
+        if (!found) {
+          throw new FinstackError(
+            `Assumption ${id} not found`,
+            undefined,
+            'No assumption with that id exists',
+            'Run `finstack regime list` to see ids',
+          );
+        }
+        const prevConfidence = found.confidence;
+        found.confidence = Math.max(0, Math.min(10, confidence));
+        found.trend =
+          confidence > prevConfidence
+            ? 'rising'
+            : confidence < prevConfidence
+              ? 'declining'
+              : found.trend;
+        found.history.push({
+          date: new Date().toISOString(),
+          confidence: found.confidence,
+          event,
+        });
+        found.updatedAt = new Date().toISOString();
+        return found;
+      });
       console.log(JSON.stringify(item, null, 2));
       break;
     }
@@ -88,6 +128,11 @@ export async function regime(args: string[]) {
     }
 
     default:
-      throw new FinstackError(`Unknown subcommand: ${sub}`, undefined, undefined, 'Use list|add|update|alerts');
+      throw new FinstackError(
+        `Unknown subcommand: ${sub}`,
+        undefined,
+        undefined,
+        'Use list|add|update|alerts',
+      );
   }
 }

@@ -1,8 +1,8 @@
 // engine/test/cache.test.ts
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { atomicWriteJSON } from '../src/fs';
 
 const TEST_DIR = join(tmpdir(), `finstack-cache-test-${Date.now()}`);

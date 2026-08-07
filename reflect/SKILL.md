@@ -6,15 +6,11 @@ description: |
   "reflect", "review my decisions", "how did I do", "what patterns",
   "retrospective", or "what have I learned".
 allowed-tools:
-  - Agent
   - Bash
   - Read
   - Write
   - Glob
-  - Grep
   - WebSearch
-  - WebFetch
-  - AskUserQuestion
 ---
 
 # /reflect — Learn

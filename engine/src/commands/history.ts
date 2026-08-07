@@ -1,15 +1,12 @@
-import { fetchChart } from '../data/yahoo';
-import { fetchBars } from '../data/polygon';
-import { getKey } from '../data/keys';
 import { getCached, getCachedWithFallback, setCache } from '../cache';
+import { getKey } from '../data/keys';
+import { fetchBars } from '../data/polygon';
+import { fetchChart } from '../data/yahoo';
 import { FinstackError } from '../errors';
+import { validateDateRange, validateISODate, validateTicker } from '../validation';
 
 function parseArgs(args: string[]): { ticker: string; from: string; to: string } {
-  const ticker = args[0]?.toUpperCase();
-  if (!ticker) {
-    console.error(JSON.stringify({ error: 'Usage: finstack history <ticker> --from YYYY-MM-DD --to YYYY-MM-DD' }));
-    process.exit(1);
-  }
+  const ticker = validateTicker(args[0]);
 
   const fromIdx = args.indexOf('--from');
   const toIdx = args.indexOf('--to');
@@ -17,11 +14,13 @@ function parseArgs(args: string[]): { ticker: string; from: string; to: string }
   const today = new Date().toISOString().split('T')[0];
   const threeMonthsAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
 
-  return {
-    ticker,
-    from: fromIdx >= 0 ? args[fromIdx + 1] : threeMonthsAgo,
-    to: toIdx >= 0 ? args[toIdx + 1] : today,
-  };
+  // Defaults are generated, so only user-supplied values need validating.
+  const from = fromIdx >= 0 ? validateISODate(args[fromIdx + 1], 'from') : threeMonthsAgo;
+  const to = toIdx >= 0 ? validateISODate(args[toIdx + 1], 'to') : today;
+
+  validateDateRange(from, to);
+
+  return { ticker, from, to };
 }
 
 function yahooRangeFor(from: string, to: string): string {
@@ -57,17 +56,19 @@ export async function history(args: string[]) {
     if (result) {
       const timestamps = result.timestamp || [];
       const quotes = result.indicators?.quote?.[0] || {};
-      const bars = timestamps.map((t: number, i: number) => ({
-        date: new Date(t * 1000).toISOString().split('T')[0],
-        open: quotes.open?.[i] ? +quotes.open[i].toFixed(2) : null,
-        high: quotes.high?.[i] ? +quotes.high[i].toFixed(2) : null,
-        low: quotes.low?.[i] ? +quotes.low[i].toFixed(2) : null,
-        close: quotes.close?.[i] ? +quotes.close[i].toFixed(2) : null,
-        volume: quotes.volume?.[i] || 0,
-      })).filter((b: any) => {
-        const d = b.date;
-        return d >= from && d <= to && b.close !== null;
-      });
+      const bars = timestamps
+        .map((t: number, i: number) => ({
+          date: new Date(t * 1000).toISOString().split('T')[0],
+          open: quotes.open?.[i] ? +quotes.open[i].toFixed(2) : null,
+          high: quotes.high?.[i] ? +quotes.high[i].toFixed(2) : null,
+          low: quotes.low?.[i] ? +quotes.low[i].toFixed(2) : null,
+          close: quotes.close?.[i] ? +quotes.close[i].toFixed(2) : null,
+          volume: quotes.volume?.[i] || 0,
+        }))
+        .filter((b: any) => {
+          const d = b.date;
+          return d >= from && d <= to && b.close !== null;
+        });
 
       const output = { ticker, from, to, source: 'yahoo', bars };
       setCache(cacheKey, output);
@@ -80,11 +81,17 @@ export async function history(args: string[]) {
 
   // Fallback to Polygon
   if (getKey('polygon')) {
-    const data = await fetchBars(ticker, from, to);
-    const output = { ...data, from, to, source: 'polygon' };
-    setCache(cacheKey, output);
-    console.log(JSON.stringify(output, null, 2));
-    return;
+    try {
+      const data = await fetchBars(ticker, from, to);
+      const output = { ...data, from, to, source: 'polygon' };
+      setCache(cacheKey, output);
+      console.log(JSON.stringify(output, null, 2));
+      return;
+    } catch {
+      // Fall through to stale cache. Without this the raw Polygon error
+      // escaped and skipped the remaining fallbacks, so the user saw a network
+      // failure even when usable data was on disk.
+    }
   }
 
   // Fallback to stale cache

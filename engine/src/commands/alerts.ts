@@ -1,6 +1,7 @@
-import { WATCHLIST_FILE, THESES_FILE } from '../paths';
-import { readJSONSafe } from '../fs';
 import type { ThesesStore } from '../data/thesis';
+import { readJSONSafe } from '../fs';
+import { paths } from '../paths';
+import { validatePositiveInt } from '../validation';
 
 // Temporary WatchlistEntry type definition until watchlist.ts is created
 interface WatchlistEntry {
@@ -28,7 +29,7 @@ export interface Alert {
 }
 
 function daysUntil(dateStr: string): number {
-  const target = new Date(dateStr + 'T00:00:00');
+  const target = new Date(`${dateStr}T00:00:00`);
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   return Math.ceil((target.getTime() - now.getTime()) / 86400000);
@@ -55,8 +56,8 @@ export function aggregateAlerts(opts: {
   source?: string;
 }): Alert[] {
   const {
-    watchlistFile = WATCHLIST_FILE,
-    thesesFile = THESES_FILE,
+    watchlistFile = paths.WATCHLIST_FILE,
+    thesesFile = paths.THESES_FILE,
     dueWithinDays = 7,
     source,
   } = opts;
@@ -150,7 +151,7 @@ function parseFlag(args: string[], flag: string): string | undefined {
 export async function alerts(args: string[]) {
   const dueStr = parseFlag(args, '--due');
   const source = parseFlag(args, '--source');
-  const dueWithinDays = dueStr ? parseInt(dueStr) : 7;
+  const dueWithinDays = dueStr ? validatePositiveInt(dueStr, 'due') : 7;
 
   const result = aggregateAlerts({ dueWithinDays, source });
   console.log(JSON.stringify({ alerts: result, count: result.length }, null, 2));

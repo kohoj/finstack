@@ -2,6 +2,162 @@
 
 All notable changes to finstack are documented here.
 
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.7.0] — 2026-08-07
+
+The correctness release. It closes the gap between what finstack claimed to do
+and what it did — ten silent failure modes fixed, tests from 179 to 552, and
+documentation drift now fails CI.
+
+The one substantive addition serves the same goal: the two state files written
+from LLM-composed JSON are now validated at the boundary, so a malformed thesis
+or an impossible entry plan is rejected instead of quietly corrupting what
+depends on it.
+
+### Fixed
+
+**Silent data loss under concurrent writes.** State mutations were
+read-modify-write with no lock, so two processes interleaving both read the
+same base and one update disappeared. Skills run engine commands in parallel
+and a second session can be open at any time, so this was reachable in normal
+use. Measured: 20 parallel `portfolio add` calls recorded 17 transactions;
+15 parallel `regime add` calls recorded 12. Every mutation now runs inside a
+file lock covering the whole cycle.
+
+**`withFileLock` re-ran its callback on failure.** `mkdir` and the callback
+shared one `try`, so an exception from the callback was indistinguishable from
+lock contention — the loop retried, calling the callback once per attempt until
+the deadline. Measured 13 invocations for a callback that throws immediately.
+For a mutation with side effects, that meant 13 applications before the error
+surfaced.
+
+**`alpha` dropped positions recorded in the same millisecond.** Buys were
+paired to sells with `buy.date < sell.date`, and timestamps are
+millisecond-resolution ISO strings. A tight loop of trades lost 2 of 3 cycles
+from the report. Pairing now uses position in the append-only transaction log.
+
+**`alpha` ignored `FINSTACK_HOME`.** It built its own path from `homedir()`,
+so the documented override silently did not apply to it. `session.ts` had the
+same pattern.
+
+**Path traversal via ticker.** The ticker pattern `^[A-Z0-9.-]{1,10}$` accepts
+`..`, `.`, and `-`, because dot and hyphen are needed for real symbols like
+BRK.B and BF-B. Tickers become cache filenames, so `..` escaped the cache
+directory. Now requires at least one alphanumeric character.
+
+**`history` skipped its own fallback.** The Polygon branch had no `try/catch`,
+so a Polygon failure propagated the raw network error and never reached the
+stale-cache step — a failure was reported while usable data sat on disk.
+
+**`scan` reported total failure as success.** When every source failed it
+cached and returned an empty signal list with exit 0, which `/sense` cannot
+distinguish from a quiet market.
+
+**`macro` returned an empty result with no key.** `fetchMultiple` swallows
+failures via `allSettled`, so a keyless run printed `{"series": []}` and exited
+0 instead of saying a key was needed.
+
+**Unvalidated numeric and date input.** `parseFloat('12abc')` returns 12, so
+malformed input became a plausible-looking number. `history --from 2026-02-31`
+was accepted and rolled forward to March 3, querying a range the user never
+asked for. `portfolio remove --price abc` wrote `NaN` into the transaction log,
+corrupting every downstream alpha calculation.
+
+**`act` and `review` used Glob without declaring it.** The step instructing a
+Glob over the journal would not have run.
+
+### Changed
+
+**Every command reports errors the same way.** 8 of 23 commands used
+`FinstackError`; the rest used `console.error` plus `process.exit(1)`, and 8
+used both. Skills could not rely on the `suggestion` field being present, so
+the documented degradation paths had nothing to key off. All 23 now throw;
+`process.exit` appears only in `cli.ts`.
+
+**Error messages say what to do.** Where the valid set is small and knowable,
+the message lists it — an unknown scenario names all six presets, an unknown
+provider names all four.
+
+**Paths resolve per access.** `paths.ts` exported constants resolved at module
+load, so `FINSTACK_HOME` only worked if set before the module graph loaded.
+Now a namespace of getters.
+
+**Validation is centralized.** 15 ad-hoc `toUpperCase()` calls and 18
+unguarded `parseFloat`/`parseInt` sites collapsed into
+`engine/src/validation.ts`.
+
+### Added
+
+**Skill-authored state is validated before it is written.** `theses.json` and
+`shadow.json` are the only files finstack writes from LLM-composed JSON, and
+nothing checked them. The failures were silent: an earnings condition missing
+its threshold became `threshold: 0` — "revenue above zero", a condition that
+can never falsify, making the thesis unkillable. A misspelled
+`falsificationtest` was dropped on write. A staged plan whose tranches did not
+sum to the position produced a shadow entry of fictional size, corrupting every
+alpha figure derived from it.
+
+Four new commands, all reading the composed document on stdin because the
+content is prose, not parameters:
+
+```
+finstack thesis add                          # validated thesis registration
+finstack thesis threaten <id> --condition ...  # /sense records a threat
+finstack thesis transition <id> <status> ...   # explicit status change
+finstack shadow add | close | show             # staged plan lifecycle
+```
+
+Validation enforces invariants a JSON Schema cannot express — tranche shares
+summing to the position, a long's stop below its take-profit, a filled tranche
+carrying a fill price — and rejects unknown fields with an edit-distance
+suggestion rather than dropping them. Every problem is reported at once, so a
+model correcting its output does not need one round trip per field.
+
+`/judge`, `/act`, and `/sense` now route through these instead of writing JSON
+directly. The 24-to-34-line prose schemas those skills carried are gone; the
+space went to explaining why the format matters.
+
+**Documentation drift fails CI.** `check:docs` grew from 2 checks to 35. It now
+verifies command and skill counts stated in prose, `setup` registration,
+`allowed-tools` against actual usage, preamble consistency, and shared
+scaffolding. Every check exists because that exact thing had drifted.
+
+**Tests: 179 to 552.** Every command has a test file. The fallback chain — the
+reliability mechanism ARCHITECTURE.md leads with — had zero coverage and now
+has each transition asserted per command. Adds integration suites for the
+portfolio, thesis, and shadow-alpha lifecycles, 42 adversarial tests covering
+injection, traversal, SSRF, hostile API responses, and corrupt state, and an
+E2E case per skill asserting its structural contract.
+
+**Lint, typecheck, and pre-commit hooks.** Biome with rules tuned to the
+codebase. `tsconfig` now includes `test/` and `scripts/`, which had never been
+type-checked and contained 8 real type errors. `./setup` installs a pre-commit
+hook running the same four gates as CI.
+
+**CI on macOS.** `Bun.sleepSync` and the `open`/`xdg-open` shell-out are
+platform-sensitive and were only tested on Linux.
+
+### Documentation
+
+**ARCHITECTURE.md described v0.2.0.** The cognitive loop was drawn as a
+seven-stage chain; tracing the actual skill references, only four of those
+seven edges exist. The real shape is a hub — six of nine skills point at
+`/judge`. Redrawn, with `screen` and `review` placed outside the loop.
+
+**The shadow portfolio loop is now documented.** Three diagrams in this repo
+show the skill graph; none showed
+`act → shadow.json → track → reflect → patterns/ → act`, which is the only path
+by which the system changes its own future behavior.
+
+**The fallback chain is described per command.** It was stated as universal;
+three commands implement all five steps. The rest stop earlier for reasons now
+recorded — `filing` has no stale fallback because serving an outdated list of
+legal disclosures without saying so is worse than reporting EDGAR is down.
+
 ## [0.6.0] — 2026-04-07
 
 The "one-person research department" release. finstack goes from a prototype

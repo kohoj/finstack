@@ -9,7 +9,7 @@ allowed-tools:
   - Bash
   - Read
   - Write
-  - WebSearch
+  - Glob
   - AskUserQuestion
 ---
 
@@ -227,38 +227,72 @@ Git commit: `cd ~/.finstack && git add -A && git commit -m "act: <ticker> — <a
 
 ## Step 7: Shadow Entry
 
-After depositing to journal, automatically create a shadow portfolio entry:
+Record the plan in the shadow portfolio. This is what `/track` later compares
+actual trades against, so it must capture the plan as designed — not what the
+user ends up doing.
 
-1. Extract from the action plan: ticker, action, entry price, shares per
-   tranche, stop-loss (price + reason), take-profit (price + reason),
-   time horizon date, and staged entry plan.
+**Use the current market price for filled tranches**, from
+`$F quote <ticker>` (the `regularMarketPrice` field). Not the "ideal" entry
+from the plan. The shadow simulates a disciplined execution of this plan, not
+a perfect one — crediting it with a price the user could not have gotten
+would flatter the comparison and defeat the purpose.
 
-2. Entry price: use the current market price from `$F quote <ticker>`
-   (regularMarketPrice field). This simulates a market-on-close order.
-   Do NOT use the "ideal" price from the plan.
+Compose the entry and pipe it to the engine:
 
-3. Read existing `~/.finstack/shadow.json` (create if missing with `{"entries":[]}`)
+```bash
+echo '{
+  "ticker": "NVDA",
+  "action": "buy",
+  "entryDate": "<today, YYYY-MM-DD>",
+  "totalShares": 50,
+  "stagedPlan": [
+    {
+      "tranche": 1,
+      "shares": 25,
+      "trigger": "immediate",
+      "status": "filled",
+      "fillPrice": <current market price>,
+      "fillDate": "<today>"
+    },
+    {
+      "tranche": 2,
+      "shares": 25,
+      "trigger": "pullback to 800",
+      "triggerPrice": 800,
+      "fallbackDate": "<entry date + 30 days>",
+      "status": "pending",
+      "fillPrice": null,
+      "fillDate": null
+    }
+  ],
+  "stopLoss":   { "price": 720,  "reason": "<why this level, from Step 3>" },
+  "takeProfit": { "price": 1100, "reason": "<why this level, from Step 3>" },
+  "timeHorizon": "<the plan target date>",
+  "linkedThesis": "<thesis id from $F thesis list, or null>",
+  "sourceJudge": "journal/<ticker>-<date>.md",
+  "sourceAct": "journal/act-<ticker>-<date>.md"
+}' | $F shadow add
+```
 
-4. Append a new shadow entry:
-   - `id`: `s` + timestamp
-   - `ticker`, `action`, `entryDate` (today)
-   - `totalShares`: total across all tranches
-   - `stagedPlan`: array of tranches, each with:
-     - `tranche` number, `shares`, `trigger` condition
-     - Tranche 1 (immediate): `status: "filled"`, `fillPrice` = current market price
-     - Subsequent tranches: `status: "pending"`, `triggerPrice`, `fallbackDate` = entry + 30 days
-   - `stopLoss`: `{ price, reason }` from the action plan
-   - `takeProfit`: `{ price, reason }` from the action plan
-   - `timeHorizon`: the plan's target date
-   - `linkedThesis`: thesis ID from theses.json if one exists for this ticker
-   - `sourceJudge`, `sourceAct`: journal filenames
-   - `status`: `open`
+Ids, `filledShares`, and timestamps are assigned by the engine — supply only
+the plan.
 
-5. Write back to shadow.json
-6. For staged entries: fallbackDate = entry date + 30 calendar days.
-   After 30 days, if the trigger hasn't been met, shadow fills at
-   day-30 close price. This is evaluated by /track or /reflect.
-7. Brief confirmation: `Shadow position created: <TICKER> <shares> shares`
+The entry is validated before it is written. Two rules catch the mistakes that
+would corrupt the comparison silently:
+
+- Tranche shares must sum to `totalShares`. Otherwise the shadow position is a
+  different size than the plan, and every alpha figure derived from it is wrong.
+- For a buy, the stop must sit below the take-profit.
+
+Both `reason` fields are read by `/reflect` when judging whether an exit was
+planned or panicked, so neither may be empty. If the error names a field, fix
+that field and retry; `$F shadow add --schema` prints the full shape.
+
+**Staged tranches**: `fallbackDate` is the entry date plus 30 days. If the
+trigger has not been met by then, the shadow fills at the day-30 close.
+`/track` and `/reflect` evaluate this.
+
+Confirm briefly: `Shadow position created: <TICKER> <shares> shares`
 
 ## Important
 

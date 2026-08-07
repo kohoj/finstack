@@ -18,7 +18,7 @@ export function lineChart(
         label: ds.label,
         data: ds.data,
         borderColor: ds.color,
-        backgroundColor: ds.color + '20',
+        backgroundColor: `${ds.color}20`,
         fill: false,
         tension: 0.1,
       })),
@@ -45,7 +45,7 @@ export function barChart(
       datasets: datasets.map(ds => ({
         label: ds.label,
         data: ds.data,
-        backgroundColor: ds.color + '80',
+        backgroundColor: `${ds.color}80`,
         borderColor: ds.color,
         borderWidth: 1,
       })),
@@ -61,21 +61,19 @@ export function barChart(
   };
 }
 
-export function pieChart(
-  labels: string[],
-  data: number[],
-  colors: string[],
-): ChartConfig {
+export function pieChart(labels: string[], data: number[], colors: string[]): ChartConfig {
   return {
     type: 'pie',
     data: {
       labels,
-      datasets: [{
-        data,
-        backgroundColor: colors.map(c => c + '80'),
-        borderColor: colors,
-        borderWidth: 1,
-      }],
+      datasets: [
+        {
+          data,
+          backgroundColor: colors.map(c => `${c}80`),
+          borderColor: colors,
+          borderWidth: 1,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -84,18 +82,15 @@ export function pieChart(
   };
 }
 
-export function heatmapTable(
-  labels: string[],
-  matrix: number[][],
-): string {
+export function heatmapTable(labels: string[], matrix: number[][]): string {
   // Generate an HTML table with color-coded cells for correlation matrix
   const colorFor = (v: number): string => {
-    if (v >= 0.8) return '#ef4444';   // red - high positive
-    if (v >= 0.5) return '#f97316';   // orange
-    if (v >= 0.2) return '#eab308';   // yellow
-    if (v > -0.2) return '#6b7280';   // gray - neutral
-    if (v > -0.5) return '#3b82f6';   // blue
-    return '#2563eb';                  // deep blue - negative
+    if (v >= 0.8) return '#ef4444'; // red - high positive
+    if (v >= 0.5) return '#f97316'; // orange
+    if (v >= 0.2) return '#eab308'; // yellow
+    if (v > -0.2) return '#6b7280'; // gray - neutral
+    if (v > -0.5) return '#3b82f6'; // blue
+    return '#2563eb'; // deep blue - negative
   };
 
   let html = '<table class="w-full text-sm"><thead><tr><th></th>';

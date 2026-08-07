@@ -1,10 +1,7 @@
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
+import { existsSync, readFileSync } from 'node:fs';
 import { loadShadow, type ShadowEntry } from '../data/shadow';
-
-const FINSTACK_DIR = join(homedir(), '.finstack');
-const PORTFOLIO_FILE = join(FINSTACK_DIR, 'portfolio.json');
+import { paths } from '../paths';
+import { validatePositiveInt } from '../validation';
 
 interface Position {
   ticker: string;
@@ -92,9 +89,9 @@ export function categorizeDeviation(reason: string | null): string {
 }
 
 function loadPortfolio(): Portfolio {
-  if (!existsSync(PORTFOLIO_FILE)) return { positions: [], transactions: [], updatedAt: '' };
+  if (!existsSync(paths.PORTFOLIO_FILE)) return { positions: [], transactions: [], updatedAt: '' };
   try {
-    const data = JSON.parse(readFileSync(PORTFOLIO_FILE, 'utf-8'));
+    const data = JSON.parse(readFileSync(paths.PORTFOLIO_FILE, 'utf-8'));
     if (!data.transactions) data.transactions = [];
     return data as Portfolio;
   } catch {
@@ -103,35 +100,49 @@ function loadPortfolio(): Portfolio {
 }
 
 export async function alpha(args: string[]) {
-  const lastN = args.includes('--last') ? parseInt(args[args.indexOf('--last') + 1]) : 10;
+  const lastN = args.includes('--last')
+    ? validatePositiveInt(args[args.indexOf('--last') + 1], 'last')
+    : 10;
 
   const portfolio = loadPortfolio();
   const shadow = loadShadow();
 
-  const sellTxs = portfolio.transactions
-    .filter((t: Transaction) => t.action === 'sell')
+  const sells = portfolio.transactions
+    .map((t, index) => ({ tx: t, index }))
+    .filter(({ tx }) => tx.action === 'sell')
     .slice(-lastN);
 
-  if (sellTxs.length === 0) {
-    console.log(JSON.stringify({
-      message: 'No completed decision cycles yet. Use /judge → /act → trade → /track to build history.',
-      decisionsNeeded: 3,
-    }, null, 2));
+  if (sells.length === 0) {
+    console.log(
+      JSON.stringify(
+        {
+          message:
+            'No completed decision cycles yet. Use /judge → /act → trade → /track to build history.',
+          decisionsNeeded: 3,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
   const positionAlphas: PositionAlpha[] = [];
 
-  for (const tx of sellTxs) {
-    const buyTx = portfolio.transactions.find(
-      (t: Transaction) => t.action === 'buy' && t.ticker === tx.ticker && t.date < tx.date,
-    );
+  for (const { tx, index } of sells) {
+    // Pair by log order, not timestamp. Timestamps are millisecond-resolution
+    // ISO strings, so a buy and sell recorded in the same millisecond compare
+    // equal and a strict `<` silently dropped the position from the report.
+    // The transaction log is append-only, so position in the array is the
+    // authoritative ordering.
+    const buyTx = portfolio.transactions
+      .slice(0, index)
+      .reverse()
+      .find((t: Transaction) => t.action === 'buy' && t.ticker === tx.ticker);
     if (!buyTx) continue;
 
     // Find shadow entry — closed or still open
-    const shadowEntry = shadow.entries.find(
-      (e: ShadowEntry) => e.ticker === tx.ticker,
-    );
+    const shadowEntry = shadow.entries.find((e: ShadowEntry) => e.ticker === tx.ticker);
 
     if (!shadowEntry) {
       // No shadow at all — still include with zero shadow P&L so user sees the gap
@@ -140,39 +151,53 @@ export async function alpha(args: string[]) {
         { ticker: tx.ticker, buyPrice: buyTx.price, sellPrice: buyTx.price, shares: tx.shares },
       );
       pa.estimated = true;
-      pa.deviationReason = tx.reason;
+      pa.deviationReason = tx.reason ?? undefined;
       positionAlphas.push(pa);
       continue;
     }
 
     const filledTranches = shadowEntry.stagedPlan.filter(t => t.status === 'filled');
-    const shadowBuyPrice = filledTranches.length > 0
-      ? filledTranches.reduce((s, t) => s + (t.fillPrice || 0) * t.shares, 0) / filledTranches.reduce((s, t) => s + t.shares, 0)
-      : buyTx.price;
+    const shadowBuyPrice =
+      filledTranches.length > 0
+        ? filledTranches.reduce((s, t) => s + (t.fillPrice || 0) * t.shares, 0) /
+          filledTranches.reduce((s, t) => s + t.shares, 0)
+        : buyTx.price;
 
     // If shadow is still open, use the real sell price as estimated shadow exit
-    const shadowSellPrice = shadowEntry.status === 'closed'
-      ? (shadowEntry.exitPrice || tx.price)
-      : tx.price;
+    const shadowSellPrice =
+      shadowEntry.status === 'closed' ? shadowEntry.exitPrice || tx.price : tx.price;
     const isEstimated = shadowEntry.status === 'open';
 
     const pa = calculatePositionAlpha(
       { ticker: tx.ticker, buyPrice: buyTx.price, sellPrice: tx.price, shares: tx.shares },
-      { ticker: tx.ticker, buyPrice: shadowBuyPrice, sellPrice: shadowSellPrice, shares: shadowEntry.filledShares || tx.shares },
+      {
+        ticker: tx.ticker,
+        buyPrice: shadowBuyPrice,
+        sellPrice: shadowSellPrice,
+        shares: shadowEntry.filledShares || tx.shares,
+      },
     );
     pa.estimated = isEstimated;
-    pa.deviationReason = tx.reason;
+    pa.deviationReason = tx.reason ?? undefined;
     positionAlphas.push(pa);
   }
 
   const totalRealPL = positionAlphas.reduce((s, p) => s + p.realPL, 0);
   const totalShadowPL = positionAlphas.reduce((s, p) => s + p.shadowPL, 0);
 
-  const costsByPattern: Record<string, { occurrences: number; totalCost: number; details: { ticker: string; cost: number; reason: string | undefined }[] }> = {};
+  const costsByPattern: Record<
+    string,
+    {
+      occurrences: number;
+      totalCost: number;
+      details: { ticker: string; cost: number; reason: string | undefined }[];
+    }
+  > = {};
   for (const pa of positionAlphas) {
     if (pa.behavioralCost >= 0) continue;
     const pattern = categorizeDeviation(pa.deviationReason || null);
-    if (!costsByPattern[pattern]) costsByPattern[pattern] = { occurrences: 0, totalCost: 0, details: [] };
+    if (!costsByPattern[pattern])
+      costsByPattern[pattern] = { occurrences: 0, totalCost: 0, details: [] };
     costsByPattern[pattern].occurrences++;
     costsByPattern[pattern].totalCost += pa.behavioralCost;
     costsByPattern[pattern].details.push({
@@ -185,9 +210,9 @@ export async function alpha(args: string[]) {
   const output = {
     period: {
       type: 'rolling',
-      basis: `last ${sellTxs.length} decisions`,
-      from: sellTxs[0]?.date,
-      to: sellTxs[sellTxs.length - 1]?.date,
+      basis: `last ${sells.length} decisions`,
+      from: sells[0]?.tx.date,
+      to: sells[sells.length - 1]?.tx.date,
     },
     real: { totalPL: +totalRealPL.toFixed(2) },
     shadow: { totalPL: +totalShadowPL.toFixed(2) },

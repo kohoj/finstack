@@ -1,5 +1,9 @@
 # finstack
 
+[![CI](https://github.com/kohoj/finstack/actions/workflows/ci.yml/badge.svg)](https://github.com/kohoj/finstack/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Bun](https://img.shields.io/badge/bun-1.0+-f472b6.svg)](https://bun.sh)
+
 **An operating system for investment thinking.**
 
 One person + AI = a hedge fund's entire research department.
@@ -10,17 +14,44 @@ data terminal — a thinking partner that argues, traces chain reactions, screen
 for opportunities, remembers your blind spots, and gets smarter with every
 decision you make.
 
+## Why not just use...
+
+| | What it gives you | What it doesn't |
+|---|---|---|
+| **A Bloomberg Terminal** | Every number, instantly | It answers "what is the price." It does not argue with your thesis, and it costs more per year than most people's portfolios. |
+| **ChatGPT in a browser** | Good reasoning on demand | No memory between sessions. It cannot tell you that you exited three tech positions early last quarter, because it does not know you did. |
+| **A quant framework** | Backtests and optimization | It assumes the strategy is the hard part. For most people the hard part is following their own plan. |
+| **A portfolio tracker** | What you own and what it's worth | It records outcomes. It cannot separate a good decision from a lucky one. |
+
+finstack's specific claim is the last row. It maintains a shadow portfolio — a
+disciplined version of you that follows every plan exactly — and the gap between
+the two is a number: how much your execution costs you, attributed to a named
+behavioral pattern.
+
+
 ## The Loop
 
+Nine skills. `/judge` is the hub — it is where a signal becomes a decision, so
+six of the other eight point at it.
+
 ```
-/sense → /research → /judge → /act → /reflect
-  ↑                                       │
-  └──────── cognitive feedback ───────────┘
-              ↕              ↕
-        /track (audit)  /cascade (trace)
-              ↕              ↕
-     /screen (discover) /review (retro)
+  screen ──┐                    ┌──► act ──┐
+           ├──► research ──┐    │          │
+           │               ▼    │          │
+  sense ───┴──────────► JUDGE ──┤          │
+           │               ▲    │          │
+           └──► cascade ───┘    └──► cascade
+                                          │
+  track ──► reflect ──► sense             │
+     ▲                                    │
+     └────────────────────────────────────┘
 ```
+
+Enter anywhere, leave anywhere. Underneath runs a second loop that nothing in
+the interface names — `/act` writes a disciplined plan, `/track` measures your
+deviation from it, `/reflect` names the pattern, and `/act` warns you about it
+next time. That is the mechanism by which the system gets sharper, and it is
+described in [ARCHITECTURE.md](ARCHITECTURE.md#the-shadow-portfolio-loop).
 
 ### Core Skills
 
@@ -199,7 +230,7 @@ finstack/
 ├── screen/SKILL.md
 ├── review/SKILL.md
 ├── engine/src/              # Data engine (compiled Bun binary)
-│   ├── cli.ts               #   25 commands
+│   ├── cli.ts               #   24 commands
 │   ├── commands/             #   quote, financials, scan, screen, portfolio,
 │   │                         #   watchlist, alerts, calendar, regime, thesis,
 │   │                         #   risk, alpha, history, earnings, macro, filing,
@@ -272,6 +303,28 @@ can replicate.
 5. **Cognitive honesty** — your patterns are guardrails, not judgments
 
 Read [ETHOS.md](ETHOS.md) for the full philosophy.
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the layout, the four gates, and — more
+usefully — the architecture constraints that look like omissions and are not.
+
+```bash
+bun install
+bun run test:gate    # lint + typecheck + 552 tests + doc checks
+```
+
+- [ROADMAP.md](ROADMAP.md) — what is planned, and what is deliberately not
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how the two layers fit together
+- [SECURITY.md](SECURITY.md) — threat model, and how to protect your own data
+- [CHANGELOG.md](CHANGELOG.md) — what changed and why
+
+## Disclaimer
+
+finstack produces analysis, not advice. It has no view on whether you should
+buy anything, and it does not execute trades. Every number it reports comes
+from a public data source that can be wrong, stale, or unavailable. You are
+responsible for your own decisions.
 
 ## License
 

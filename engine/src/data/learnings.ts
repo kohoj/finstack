@@ -1,9 +1,8 @@
-import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'fs';
-import { dirname } from 'path';
-import { FINSTACK_HOME } from '../paths';
-import { join } from 'path';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { paths } from '../paths';
 
-const LEARNINGS_FILE = join(FINSTACK_HOME, 'learnings.jsonl');
+const LEARNINGS_FILE = join(paths.FINSTACK_HOME, 'learnings.jsonl');
 
 export interface Learning {
   id: string;
@@ -15,14 +14,17 @@ export interface Learning {
   tags: string[];
 }
 
-export function appendLearning(learning: Omit<Learning, 'id' | 'timestamp'>, file = LEARNINGS_FILE): Learning {
+export function appendLearning(
+  learning: Omit<Learning, 'id' | 'timestamp'>,
+  file = LEARNINGS_FILE,
+): Learning {
   mkdirSync(dirname(file), { recursive: true });
   const entry: Learning = {
     id: `l${Date.now()}`,
     timestamp: new Date().toISOString(),
     ...learning,
   };
-  appendFileSync(file, JSON.stringify(entry) + '\n');
+  appendFileSync(file, `${JSON.stringify(entry)}\n`);
   return entry;
 }
 
@@ -53,10 +55,11 @@ export function searchLearnings(opts: {
 
   if (keyword) {
     const kw = keyword.toLowerCase();
-    results = results.filter(l =>
-      l.summary.toLowerCase().includes(kw) ||
-      l.detail.toLowerCase().includes(kw) ||
-      l.tags.some(t => t.toLowerCase().includes(kw))
+    results = results.filter(
+      l =>
+        l.summary.toLowerCase().includes(kw) ||
+        l.detail.toLowerCase().includes(kw) ||
+        l.tags.some(t => t.toLowerCase().includes(kw)),
     );
   }
 

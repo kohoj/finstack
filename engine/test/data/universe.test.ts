@@ -1,7 +1,7 @@
 // engine/test/data/universe.test.ts
-import { describe, it, expect } from 'bun:test';
-import { SP500, NASDAQ100, getUniverse, parseCustomUniverse } from '../../src/data/universe';
+import { describe, expect, it } from 'bun:test';
 import { getPreset, listPresets } from '../../src/data/presets';
+import { getUniverse, NASDAQ100, parseCustomUniverse, SP500 } from '../../src/data/universe';
 
 describe('universe', () => {
   it('SP500 has 400+ tickers', () => {

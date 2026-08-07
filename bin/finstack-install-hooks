@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# finstack — install git hooks
+# Called by ./setup. Safe to run repeatedly (idempotent).
+# Skips silently when not in a git working tree (e.g. tarball install).
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+GIT_DIR="$SCRIPT_DIR/.git"
+
+if [ ! -d "$GIT_DIR" ]; then
+  echo "  - git hooks skipped (not a git working tree)"
+  exit 0
+fi
+
+HOOKS_DIR="$GIT_DIR/hooks"
+mkdir -p "$HOOKS_DIR"
+
+PRE_COMMIT="$HOOKS_DIR/pre-commit"
+
+# Preserve an existing hook that we did not write
+if [ -f "$PRE_COMMIT" ] && ! grep -q "finstack-managed-hook" "$PRE_COMMIT" 2>/dev/null; then
+  echo "  ! pre-commit hook already exists and was not created by finstack"
+  echo "    Leaving it untouched. To adopt ours, move it aside and re-run ./setup"
+  exit 0
+fi
+
+cat > "$PRE_COMMIT" <<'HOOK'
+#!/bin/sh
+# finstack-managed-hook — regenerate with: bin/finstack-install-hooks
+#
+# Runs the same gates as CI so failures surface before review.
+# Bypass a single commit with: git commit --no-verify
+
+set -e
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "pre-commit: bun not found, skipping checks"
+  exit 0
+fi
+
+echo "pre-commit: lint"
+bun run lint
+
+echo "pre-commit: typecheck"
+bun run typecheck
+
+echo "pre-commit: tests"
+bun test --bail
+
+echo "pre-commit: docs"
+bun run check:docs
+HOOK
+
+chmod +x "$PRE_COMMIT"
+echo "  ✓ pre-commit hook installed"

@@ -6,17 +6,12 @@ description: |
   to "research [ticker]", "deep dive on [company]", "analyze [ticker]",
   "tell me about [company]", or "read this 10-K".
 allowed-tools:
-  - Agent
   - Bash
   - Read
   - Write
   - Glob
-  - Grep
   - WebSearch
   - WebFetch
-  - TaskCreate
-  - TaskUpdate
-  - AskUserQuestion
 ---
 
 # /research — Understand

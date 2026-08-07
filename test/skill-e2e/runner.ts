@@ -1,132 +1,172 @@
 #!/usr/bin/env bun
 /**
- * E2E Skill Test Runner
+ * E2E skill runner.
  *
- * Executes finstack skills via `claude -p` and validates the output.
- * Runs only when EVALS=1 is set (expensive — uses Claude API).
+ * Drives real skills through `claude -p` against fixture data and reports what
+ * happened — which engine commands ran, what was written to FINSTACK_HOME, and
+ * what the model said.
  *
- * Usage:
+ * Gated behind EVALS=1 because every run costs API calls:
  *   EVALS=1 bun test test/skill-e2e/
+ *
+ * What these tests assert, and what they deliberately do not: the target is the
+ * structural contract — the commands a skill invokes, the files it writes, the
+ * markers its output format requires. Asserting on the prose itself would be
+ * flaky without testing anything the prose is supposed to guarantee. A skill
+ * that writes a well-formed journal entry containing bad analysis is a
+ * reasoning bug, not something a string match can catch.
  */
 
-import { spawn } from 'child_process';
-import { mkdirSync, cpSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { spawn } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+/** State files a fixture directory may provide. */
+const FIXTURE_FILES = [
+  'portfolio.json',
+  'watchlist.json',
+  'theses.json',
+  'shadow.json',
+  'consensus.json',
+  'profile.json',
+] as const;
 
 export interface SkillResult {
   success: boolean;
   transcript: string;
-  toolCalls: string[];
+  /** Engine commands seen in the transcript, deduplicated. */
   engineCommands: string[];
   duration: number;
   exitCode: number | null;
+  /**
+   * The test home, still on disk. The caller owns it and must call cleanup().
+   * Kept alive so tests can assert on what the skill wrote — the previous
+   * runner deleted it before returning, which made file assertions impossible.
+   */
+  home: string;
+  cleanup: () => void;
+  /** Files under journal/, relative to the home. */
+  journalFiles: string[];
+  /** Read a file from the test home, or null if absent. */
+  readHomeFile: (relativePath: string) => string | null;
 }
 
-/**
- * Run a finstack skill via claude -p and capture the output.
- */
+function listJournal(home: string): string[] {
+  const dir = join(home, 'journal');
+  if (!existsSync(dir)) return [];
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
 export async function runSkill(
   skillName: string,
   prompt: string,
-  opts: {
-    timeout?: number;
-    fixturesDir?: string;
-  } = {},
+  opts: { timeout?: number; fixturesDir?: string } = {},
 ): Promise<SkillResult> {
   const { timeout = 300_000, fixturesDir } = opts;
 
-  // Create isolated test data directory
-  const testHome = join(tmpdir(), `finstack-e2e-${Date.now()}`);
-  mkdirSync(testHome, { recursive: true });
-  mkdirSync(join(testHome, 'journal'), { recursive: true });
-  mkdirSync(join(testHome, 'patterns'), { recursive: true });
-  mkdirSync(join(testHome, 'cache'), { recursive: true });
+  const home = join(tmpdir(), `finstack-e2e-${skillName}-${Date.now()}`);
+  for (const sub of ['journal', 'patterns', 'cache', 'reports', 'sessions']) {
+    mkdirSync(join(home, sub), { recursive: true });
+  }
 
-  // Copy fixtures if provided
   if (fixturesDir && existsSync(fixturesDir)) {
-    const files = ['portfolio.json', 'watchlist.json', 'theses.json', 'shadow.json', 'consensus.json', 'profile.json'];
-    for (const file of files) {
+    for (const file of FIXTURE_FILES) {
       const src = join(fixturesDir, file);
-      if (existsSync(src)) {
-        cpSync(src, join(testHome, file));
-      }
+      if (existsSync(src)) cpSync(src, join(home, file));
     }
   }
 
+  const cleanup = () => {
+    try {
+      rmSync(home, { recursive: true, force: true });
+    } catch {}
+  };
+
+  const readHomeFile = (relativePath: string): string | null => {
+    const file = join(home, relativePath);
+    if (!existsSync(file)) return null;
+    try {
+      return readFileSync(file, 'utf-8');
+    } catch {
+      return null;
+    }
+  };
+
   const startTime = Date.now();
 
-  return new Promise<SkillResult>((resolve) => {
+  return new Promise<SkillResult>(resolve => {
     const fullPrompt = prompt ? `/${skillName} ${prompt}` : `/${skillName}`;
-
     const proc = spawn('claude', ['-p', fullPrompt], {
-      env: {
-        ...process.env,
-        FINSTACK_HOME: testHome,
-      },
+      env: { ...process.env, FINSTACK_HOME: home },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let stdout = '';
     let stderr = '';
+    proc.stdout.on('data', d => {
+      stdout += d.toString();
+    });
+    proc.stderr.on('data', d => {
+      stderr += d.toString();
+    });
 
-    proc.stdout.on('data', (data) => { stdout += data.toString(); });
-    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+    const timer = setTimeout(() => proc.kill('SIGTERM'), timeout);
 
-    const timer = setTimeout(() => {
-      proc.kill('SIGTERM');
-    }, timeout);
-
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       clearTimeout(timer);
-      const duration = Date.now() - startTime;
 
-      // Extract engine commands from transcript
-      const engineCommands: string[] = [];
-      const cmdRegex = /\$F\s+(\w+)/g;
-      let match;
-      while ((match = cmdRegex.exec(stdout)) !== null) {
-        engineCommands.push(match[1]);
+      // Both spellings appear: `$F quote` in the skill text, `finstack quote`
+      // when the model writes the command out in full.
+      const commands = new Set<string>();
+      for (const m of stdout.matchAll(/\$F\s+(\w+)/g)) commands.add(m[1]);
+      for (const m of stdout.matchAll(/\bfinstack\s+(\w+)/g)) {
+        if (m[1] !== 'help') commands.add(m[1]);
       }
-
-      // Extract tool calls (Bash commands that invoke finstack)
-      const toolCalls: string[] = [];
-      const toolRegex = /finstack\s+(\w+)/g;
-      while ((match = toolRegex.exec(stdout)) !== null) {
-        toolCalls.push(match[1]);
-      }
-
-      // Clean up test directory
-      try { rmSync(testHome, { recursive: true, force: true }); } catch {}
 
       resolve({
         success: code === 0,
         transcript: stdout + stderr,
-        toolCalls: [...new Set(toolCalls)],
-        engineCommands: [...new Set(engineCommands)],
-        duration,
+        engineCommands: [...commands].sort(),
+        duration: Date.now() - startTime,
         exitCode: code,
+        home,
+        cleanup,
+        journalFiles: listJournal(home),
+        readHomeFile,
       });
     });
 
-    proc.on('error', (err) => {
+    proc.on('error', err => {
       clearTimeout(timer);
-      try { rmSync(testHome, { recursive: true, force: true }); } catch {}
       resolve({
         success: false,
         transcript: `Process error: ${err.message}`,
-        toolCalls: [],
         engineCommands: [],
         duration: Date.now() - startTime,
         exitCode: null,
+        home,
+        cleanup,
+        journalFiles: [],
+        readHomeFile,
       });
     });
   });
 }
 
-/**
- * Check if E2E tests should run.
- */
 export function shouldRunE2E(): boolean {
   return process.env.EVALS === '1';
+}
+
+/** True when the `claude` CLI is on PATH — E2E cannot run without it. */
+export function claudeAvailable(): boolean {
+  try {
+    return Bun.spawnSync(['which', 'claude']).exitCode === 0;
+  } catch {
+    return false;
+  }
 }

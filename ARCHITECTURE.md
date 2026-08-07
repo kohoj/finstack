@@ -20,23 +20,84 @@ This separation means:
 
 ### The Cognitive Loop
 
-finstack is not a collection of tools. It is a closed-loop system:
+finstack is not a collection of tools. Its skills refer to each other, and the
+shape they form is a hub with a feedback loop, not a chain:
 
 ```
-Sense → Research → Judge → Act → Cascade → Track → Reflect
-  ↑                                                      │
-  └──────────────── cognitive feedback ─────────────────┘
+  screen ──┐                    ┌──► act ──┐
+           ├──► research ──┐    │          │
+           │               ▼    │          │
+  sense ───┴──────────► JUDGE ──┤          │
+           │               ▲    │          │
+           └──► cascade ───┘    └──► cascade
+                                          │
+  track ──► reflect ──► sense             │
+     ▲                                    │
+     └────────────────────────────────────┘
 ```
 
-- **Sense**: Filter the world down to N signals that matter to YOU
-- **Research**: Produce memorandums, not data dumps, with full source tracing
-- **Judge**: Bull vs Bear adversarial exchange, verdict with conditional confidence
-- **Act**: Position sizing, stop-loss, time horizon — cross-checked against your patterns
-- **Cascade**: Trace chain reactions across N causal paths in parallel
-- **Track**: Real vs shadow portfolio → cognitive alpha → behavioral cost in dollars
-- **Reflect**: Extract patterns from decisions → update profile → shape future invocations
+**judge is the hub.** Six of the nine skills point at it: sense, research,
+cascade, track, reflect, and screen all end by suggesting `/judge`. It is where
+a signal becomes a decision, so everything upstream funnels into it and
+everything downstream flows out of it.
 
-The loop is **gravity, not a rail**. Enter at any point. Exit at any point. But every action feeds back into the system's understanding of you.
+- **sense** — filter the world down to the few signals that matter to you
+- **research** — produce a memorandum with traceable claims, not a data dump
+- **judge** — Bull vs Bear adversarial exchange, ending in conditional confidence
+- **act** — position sizing, stops, horizon, cross-checked against your patterns
+- **cascade** — trace chain reactions across several causal paths in parallel
+- **track** — real vs shadow portfolio, cognitive alpha, behavioral cost
+- **reflect** — separate luck from skill, extract patterns, update the profile
+- **screen** — find candidates you do not already know about
+- **review** — periodic retrospective over a time window
+
+Two skills sit outside the loop by design:
+
+**screen is the funnel.** Everything else asks "what is happening to what I
+already hold or watch." screen asks "what else exists that meets these
+criteria." It writes nothing to `~/.finstack/` — it is a search, not a decision.
+
+**review is a read-only report.** It aggregates a week or a month and changes
+nothing. That is what distinguishes it from reflect, which writes `patterns/`
+and `profile.json` and therefore changes how later skills behave.
+
+The loop is **gravity, not a rail**. Enter at any point, leave at any point.
+
+### The Shadow Portfolio Loop
+
+The skill graph above is what the user navigates. Underneath it runs a second
+loop that nothing in the interface names, and it is the mechanism that makes
+the system improve rather than merely record:
+
+```
+  act        writes a staged plan to shadow.json
+   │         ("what a disciplined version of you would do")
+   ▼
+  track      compares real trades against that plan
+   │         → analytical alpha  (was the thinking good?)
+   │         → execution drag    (was the doing good?)
+   ▼
+  reflect    attributes the gap to a named behavioral pattern
+   │         and writes patterns/<name>.md
+   ▼
+  act        reads patterns/ and warns before the user repeats it
+   │
+   └──────────────────────────► (loop closes)
+```
+
+This is the only path by which finstack modifies its own future behavior. A
+pattern file written by reflect contains a `Recommendation:` field, and that
+text is loaded into act's context on the next invocation — so the system's
+output becomes the system's input.
+
+It is also what lets finstack say something no portfolio tracker can:
+
+> Your analysis is good — 70% thesis accuracy is above average. Your problem
+> is not what you think. It's what you do after you think.
+
+That sentence requires separating decision quality from execution quality, and
+that requires a counterfactual portfolio to compare against. Everything else in
+the architecture exists to keep that comparison honest.
 
 ### Data Tiering
 
@@ -50,8 +111,11 @@ finstack works **out of the box** with zero API keys, then unlocks progressively
 | 1 | FRED | Macro indicators | Free key |
 | 2 | Alpha Vantage | Earnings calendar + surprise | Free key |
 | 2 | Polygon | Historical OHLCV, splits, dividends | Free key |
+| 2 | FMP | Financial ratios | Free key |
 
-Tier 0 + Tier 1 covers 90% of needs. Skills **never fail** when Tier 2 is unavailable — they adapt using fallback chains.
+Tier 0 + Tier 1 covers most needs. Commands degrade rather than fail when a
+Tier 2 source is unavailable — see the fallback table below for exactly how far
+each one degrades.
 
 ## System Architecture
 
@@ -61,31 +125,68 @@ Tier 0 + Tier 1 covers 90% of needs. Skills **never fail** when Tier 2 is unavai
 **Source**: `engine/src/` (TypeScript compiled with Bun)  
 **Purpose**: Deterministic data operations — fetch, parse, cache, validate
 
-The engine is a **standalone executable** built via `bun build --compile`. Zero dependencies at runtime. The CLI dispatches to 15 commands:
+The engine is a **standalone executable** built via `bun build --compile`. Zero dependencies at runtime. The CLI dispatches to 24 commands:
 
 ```typescript
 // engine/src/cli.ts
 const commands = {
-  quote, financials, scan, regime, portfolio, keys, macro,
-  filing, history, earnings, alpha, thesis, risk, watchlist, alerts
+  // Data retrieval — external sources, cached
+  quote, financials, history, earnings, filing, macro, scan, calendar,
+  // State management — local JSON
+  portfolio, watchlist, thesis, shadow, regime, keys, learn,
+  // Analysis — computed from state and market data
+  risk, alpha, correlate, scenario, backtest, screen,
+  // Reporting
+  alerts, report, review,
 };
 ```
 
-Each command follows the **fallback chain pattern**:
+Network-backed commands degrade through a **fallback chain**:
 
 1. Check fresh cache (TTL-based)
-2. Try primary data source (Yahoo, FRED, EDGAR)
-3. Try secondary source (Polygon, Alpha Vantage) if key configured
-4. Return stale cache with `_stale: true` flag
-5. Throw structured error with suggestion
+2. Try primary data source (Yahoo, FRED, EDGAR, Alpha Vantage)
+3. Try secondary source (Polygon, FMP) if a key is configured
+4. Return stale cache with `_stale: true` and `_cacheAge`
+5. Throw `FinstackError` with source, reason, and a suggestion
 
-**Example**: `quote.ts` tries Yahoo → Polygon → stale cache before failing.
+Not every command implements every step, and the difference is deliberate:
+
+| Command | Fresh cache | Secondary | Stale fallback | Structured error |
+|---------|:---:|:---:|:---:|:---:|
+| `quote` | ✓ | Polygon | ✓ | ✓ |
+| `financials` | ✓ | FMP | ✓ | ✓ |
+| `history` | ✓ | Polygon | ✓ | ✓ |
+| `earnings` | ✓ | — | ✓ | ✓ |
+| `macro` | ✓ | — | ✓ | ✓ |
+| `scan` | ✓ | — | ✓ | ✓ |
+| `screen` | ✓ | — | — | ✓ |
+| `filing` | ✓ | — | — | — |
+| `calendar` | ✓ | — | — | — |
+| `correlate` | ✓ | — | — | — |
+
+**Why some commands have no secondary source.** Only three data types are
+available from two providers. Earnings history exists only on Alpha Vantage,
+filings only on EDGAR, macro series only on FRED. A secondary cannot be added
+where no second source exists.
+
+**Why `filing` has no stale fallback.** Filings are legal disclosures. Serving
+a six-hour-old list without saying so risks the user concluding a company has
+not filed something when it has. Reporting that EDGAR is unreachable is the
+safer failure.
+
+**Why `calendar` and `correlate` have neither.** Both fan out over many tickers
+and tolerate partial results — a calendar missing one company is still useful.
+They aggregate per-ticker caches rather than maintaining one of their own.
+
+**Verification.** These rows are covered by tests, one per transition, in
+`engine/test/commands/`. The table is not a description of intent; it is a
+description of what is asserted.
 
 **Why compiled?** Startup time matters. `finstack quote AAPL` runs in ~100ms including network. An interpreted runtime would add 200-500ms overhead. When `/sense` scans 10 tickers in parallel, that's 2-5 seconds saved.
 
 ### Skills
 
-**Location**: `{sense,research,judge,act,reflect,cascade,track}/SKILL.md`  
+**Location**: `{sense,research,judge,act,cascade,track,reflect,screen,review}/SKILL.md`  
 **Purpose**: Orchestrate Claude Code's reasoning capabilities
 
 Each skill is a **prompt template** with three sections:
@@ -151,6 +252,47 @@ Every state file is JSON (human-readable, `git diff`-able, auditable). The direc
 
 **Atomic writes**: All JSON writes use `atomicWriteJSON()` — write to temp file, rename. Never risk corrupt state from partial writes.
 
+**Concurrency**: Atomic writes prevent a *torn* file. They do not prevent a
+*lost* one. Every state mutation is a read-modify-write cycle, and two processes
+interleaving both read the same base and both write — so one update disappears.
+This is reachable in normal use: skills run engine commands in parallel, and a
+second Claude Code session can be open at any time.
+
+Measured before the fix, 20 parallel `portfolio add` calls recorded 17 of 20
+transactions. 15 parallel `regime add` calls recorded 12.
+
+Every mutation now runs inside `withFileLock()` — a mkdir-based mutex, atomic on
+POSIX — wrapping the *whole* cycle:
+
+```typescript
+function mutate<T>(fn: (p: Portfolio) => T): T {
+  return withFileLock(PORTFOLIO_FILE, () => {
+    const p = load();      // read
+    const result = fn(p);  // modify
+    save(p);               // write
+    return result;
+  });
+}
+```
+
+Locking only the write would do nothing: the race is between the read and the
+write.
+
+| File | Locked | Why |
+|------|:---:|-----|
+| `portfolio.json` | ✓ | Concurrent add/remove lost transactions |
+| `theses.json` | ✓ | /sense adds threats while /judge appends theses |
+| `shadow.json` | ✓ | /act appends while `portfolio remove` closes |
+| `consensus.json` | ✓ | /sense updates while the user edits by hand |
+| `watchlist.json` | ✓ | Multiple sessions |
+| `keys.json` | ✓ | Rare, but the failure is silent |
+| `cache/*.json` | — | A lost cache write is a cache miss |
+| `sessions/*.json` | — | One file per ppid, never shared |
+
+On timeout the lock is broken and the operation proceeds anyway. A stale lock
+from a killed process must not wedge the CLI permanently, and losing one update
+is better than refusing to run.
+
 **Permission enforcement**: `keys.json` is written with `0o600` (user-read-only). The cache directory is world-readable (contains no secrets).
 
 **Separation of concerns**:
@@ -187,7 +329,25 @@ The engine returns **structured JSON** (never unstructured text). Skills parse t
 7. Skill writes `journal/sense-2026-04-07.md` with findings
 8. Skill commits: `cd ~/.finstack && git commit -m "sense: 2026-04-07 — 3 signals"`
 
-The engine never "knows" what a thesis is or what `/sense` is trying to do. It provides primitives. Skills compose them into cognitive workflows.
+The engine never "knows" what a thesis *means* or what `/sense` is trying to
+achieve. It provides primitives; skills compose them into cognitive workflows.
+
+The one place that split needed care is state whose content is reasoning — a
+thesis with falsifiable conditions, a staged entry plan with a rationale on
+every stop. Those cannot come from CLI flags. They are composed by the skill
+and piped in:
+
+```bash
+echo '<json>' | $F thesis add
+echo '<json>' | $F shadow add
+```
+
+The engine validates before writing (`engine/src/schema.ts`), enforcing
+invariants a JSON Schema cannot express: tranche shares summing to the
+position, a long's stop below its take-profit, a filled tranche carrying a
+fill price. Unknown fields are rejected with an edit-distance suggestion,
+because a silently dropped typo produces a condition that looks valid and can
+never fail.
 
 ## Data Flow
 
@@ -470,47 +630,67 @@ Enables:
 
 ## Testing Strategy
 
-### Current State (v0.2.0)
+Four layers, each answering a different question.
 
-**Unit tests**: `engine/src/**/*.test.ts`  
-**Coverage**: Data layer (yahoo.ts, cache.ts, keys.ts) + core commands (quote, portfolio, thesis)  
-**Runner**: `bun test`
+| Layer | Location | Question it answers |
+|-------|----------|---------------------|
+| Unit | `engine/test/{cache,fs,net,errors,validation}.test.ts` | Does this function behave? |
+| Command | `engine/test/commands/` | Does this command handle its inputs, sources, and failures? |
+| Integration | `engine/test/integration/` | Do commands compose correctly across a sequence? |
+| Adversarial | `engine/test/adversarial.test.ts` | What happens under hostile input? |
+| E2E | `test/skill-e2e/` | Does the skill actually run end to end? |
 
-**Example**: `cache.test.ts`
+**Runner**: `bun test`. Zero config, TypeScript native, full suite in ~8s.
 
-```typescript
-test('getCached returns null if TTL expired', () => {
-  setCache('test-key', { value: 123 });
-  // Mock Date.now() to +10 minutes
-  expect(getCached('test-key', 'quote')).toBe(null);
-});
-```
+### What the command layer covers
 
-**Why Bun test?** Zero config. TypeScript native. Fast (runs all tests in ~50ms).
+Every command has a test file. For the ten network-backed commands, each step
+of the fallback chain is asserted separately — a fresh cache hit issues zero
+requests, a primary failure reaches the secondary, a total outage degrades to
+stale data flagged with `_stale`, and only an empty cache produces an error.
 
-### Planned (Phase 2+)
+Network is mocked by replacing `globalThis.fetch` with a matcher-driven stub
+(`engine/test/helpers.ts`). An unmatched URL throws rather than returning a
+default, so a test cannot accidentally pass by hitting a path nobody modelled.
 
-**Integration tests**: Test skill → engine → API flow end-to-end
+`FINSTACK_NO_BACKOFF=1` zeroes retry delays without changing retry counts. The
+code path under test is identical; it just does not sleep. Without it, each
+simulated outage costs four seconds of real waiting.
+
+### What the integration layer covers
+
+Three sequences that no single command owns:
+
+- **portfolio-lifecycle** — buy, average down, sell, and the invariant that the
+  transaction log stays a complete audit trail
+- **thesis-lifecycle** — register, threaten, escalate, kill, obituary; the state
+  machine spans four skills
+- **shadow-alpha** — the real-vs-shadow join that produces cognitive alpha
+
+### Test isolation
+
+Tests run in-process against a temp `FINSTACK_HOME`. This works because
+`paths.ts` exposes getters rather than constants, so the directory is resolved
+per access.
+
+That property was added because of this failure: with module-load constants,
+whichever test file imported `paths.ts` first froze the value for the entire
+process. Seven test files passed individually and produced thirty failures when
+run together, all writing into one directory.
+
+### E2E
+
+`test/skill-e2e/` drives real skills through `claude -p` against fixture data.
+Gated behind `EVALS=1` because it costs API calls:
 
 ```bash
-# Planned: tests/integration/sense.test.ts
-# 1. Mock API responses
-# 2. Invoke /sense skill
-# 3. Assert journal file created
-# 4. Assert git commit made
+EVALS=1 bun test test/skill-e2e/
 ```
 
-**E2E skill tests**: Test full skill invocations with Claude Code harness
-
-```bash
-# Planned: tests/e2e/judge.test.ts
-# 1. Feed /judge AAPL to Claude Code
-# 2. Capture full conversation
-# 3. Assert thesis created in theses.json
-# 4. Assert adversarial exchange structure
-```
-
-**Challenge**: E2E tests require mocking Claude Code itself OR running against live API (expensive, slow). Integration tests (skill preamble → engine commands → mocked APIs) provide 80% coverage at 1/10th the cost.
+The assertion targets are structural rather than semantic — that the expected
+engine commands were invoked, that a journal entry was written, that the output
+carries the skill's characteristic markers. Asserting on LLM prose would be
+flaky without testing anything the prose is supposed to guarantee.
 
 ## Extending finstack
 

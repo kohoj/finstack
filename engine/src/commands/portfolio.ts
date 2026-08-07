@@ -1,6 +1,7 @@
-import { PORTFOLIO_FILE, SHADOW_FILE } from '../paths';
-import { atomicWriteJSON, readJSONSafe } from '../fs';
 import { FinstackError } from '../errors';
+import { atomicWriteJSON, readJSONSafe, withFileLock } from '../fs';
+import { paths } from '../paths';
+import { validatePositiveNumber, validateTicker } from '../validation';
 
 interface Position {
   ticker: string;
@@ -26,10 +27,10 @@ interface Portfolio {
 }
 
 function load(): Portfolio {
-  const data = readJSONSafe<Portfolio>(PORTFOLIO_FILE, {
+  const data = readJSONSafe<Portfolio>(paths.PORTFOLIO_FILE, {
     positions: [],
     transactions: [],
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   });
   if (!data.transactions) data.transactions = [];
   return data;
@@ -37,11 +38,27 @@ function load(): Portfolio {
 
 function save(data: Portfolio) {
   data.updatedAt = new Date().toISOString();
-  atomicWriteJSON(PORTFOLIO_FILE, data);
+  atomicWriteJSON(paths.PORTFOLIO_FILE, data);
+}
+
+/**
+ * Read-modify-write portfolio.json under a file lock.
+ *
+ * Locking only the write is useless: the lost update happens between the read
+ * and the write, when a second process reads the same base state. The whole
+ * cycle has to be inside the lock.
+ */
+function mutate<T>(fn: (p: Portfolio) => T): T {
+  return withFileLock(paths.PORTFOLIO_FILE, () => {
+    const p = load();
+    const result = fn(p);
+    save(p);
+    return result;
+  });
 }
 
 function loadShadow(): any {
-  return readJSONSafe(SHADOW_FILE, { entries: [] });
+  return readJSONSafe(paths.SHADOW_FILE, { entries: [] });
 }
 
 function parseFlag(args: string[], flag: string): string | undefined {
@@ -60,107 +77,114 @@ export async function portfolio(args: string[]) {
     }
 
     case 'add': {
-      const ticker = args[1]?.toUpperCase();
-      const shares = parseFloat(args[2]);
-      const avgCost = parseFloat(args[3]);
-      if (!ticker || isNaN(shares) || isNaN(avgCost)) {
-        console.error(JSON.stringify({ error: 'Usage: finstack portfolio add <ticker> <shares> <avgCost>' }));
-        process.exit(1);
-      }
-      if (shares <= 0) {
-        console.error(JSON.stringify({ error: 'Shares must be positive' }));
-        process.exit(1);
-      }
-      if (avgCost <= 0) {
-        console.error(JSON.stringify({ error: 'Average cost must be positive' }));
-        process.exit(1);
-      }
-      const p = load();
-      const existing = p.positions.find(pos => pos.ticker === ticker);
-      if (existing) {
-        const totalShares = existing.shares + shares;
-        existing.avgCost = (existing.avgCost * existing.shares + avgCost * shares) / totalShares;
-        existing.shares = totalShares;
-      } else {
-        p.positions.push({ ticker, shares, avgCost, addedAt: new Date().toISOString() });
-      }
-      p.transactions.push({
-        ticker,
-        action: 'buy',
-        shares,
-        price: avgCost,
-        date: new Date().toISOString(),
-        reason: null,
+      const ticker = validateTicker(args[1]);
+      const shares = validatePositiveNumber(args[2], 'shares');
+      const avgCost = validatePositiveNumber(args[3], 'avgCost');
+      const p = mutate(p => {
+        const existing = p.positions.find(pos => pos.ticker === ticker);
+        if (existing) {
+          const totalShares = existing.shares + shares;
+          existing.avgCost = (existing.avgCost * existing.shares + avgCost * shares) / totalShares;
+          existing.shares = totalShares;
+        } else {
+          p.positions.push({ ticker, shares, avgCost, addedAt: new Date().toISOString() });
+        }
+        p.transactions.push({
+          ticker,
+          action: 'buy',
+          shares,
+          price: avgCost,
+          date: new Date().toISOString(),
+          reason: null,
+        });
+        return p;
       });
-      save(p);
       console.log(JSON.stringify(p, null, 2));
       break;
     }
 
     case 'remove': {
-      const ticker = args[1]?.toUpperCase();
-      if (!ticker) {
-        console.error(JSON.stringify({ error: 'Usage: finstack portfolio remove <ticker> [--reason <reason>] [--price <price>]' }));
-        process.exit(1);
-      }
+      const ticker = validateTicker(args[1]);
 
       const reason = parseFlag(args, '--reason') || null;
       const priceStr = parseFlag(args, '--price');
+      // Validated up front: an unchecked NaN here would be written into the
+      // transaction log and corrupt every downstream alpha calculation.
+      const sellPriceOverride =
+        priceStr === undefined ? undefined : validatePositiveNumber(priceStr, 'price');
 
-      const p = load();
-      const position = p.positions.find(pos => pos.ticker === ticker);
-
-      // Check for open shadow entry — deviation detection
+      // Read outside the lock: shadow.json is a different file and is only
+      // read here, so holding the portfolio lock across it would widen the
+      // critical section for no benefit.
       const shadow = loadShadow();
-      const shadowEntry = shadow.entries?.find((e: any) => e.ticker === ticker && e.status === 'open');
+      const shadowEntry = shadow.entries?.find(
+        (e: any) => e.ticker === ticker && e.status === 'open',
+      );
 
+      // Deviation detection — surfaced before the mutation so the user sees the
+      // prompt even when they proceed.
       if (shadowEntry && !reason) {
         const horizonDate = new Date(shadowEntry.timeHorizon);
         const daysRemaining = Math.ceil((horizonDate.getTime() - Date.now()) / 86400000);
         if (daysRemaining > 0) {
-          console.log(JSON.stringify({
-            deviation_detected: true,
-            ticker,
-            shadow_status: 'open',
-            planned_exit: shadowEntry.timeHorizon,
-            days_remaining: daysRemaining,
-            prompt: `You're closing ${ticker} ${daysRemaining} days before your plan's horizon. Reason?`,
-            options: ['thesis-changed', 'stop-triggered', 'emotional', 'need-cash', 'other'],
-            usage: `finstack portfolio remove ${ticker} --reason <reason>`,
-          }, null, 2));
+          console.log(
+            JSON.stringify(
+              {
+                deviation_detected: true,
+                ticker,
+                shadow_status: 'open',
+                planned_exit: shadowEntry.timeHorizon,
+                days_remaining: daysRemaining,
+                prompt: `You're closing ${ticker} ${daysRemaining} days before your plan's horizon. Reason?`,
+                options: ['thesis-changed', 'stop-triggered', 'emotional', 'need-cash', 'other'],
+                usage: `finstack portfolio remove ${ticker} --reason <reason>`,
+              },
+              null,
+              2,
+            ),
+          );
         }
       }
 
-      if (position) {
-        const sellPrice = priceStr ? parseFloat(priceStr) : position.avgCost;
-        p.transactions.push({
-          ticker,
-          action: 'sell',
-          shares: position.shares,
-          price: sellPrice,
-          date: new Date().toISOString(),
-          reason: reason || (shadowEntry ? 'unspecified' : null),
-        });
-      }
-
-      p.positions = p.positions.filter(pos => pos.ticker !== ticker);
-      save(p);
-      console.log(JSON.stringify(p, null, 2));
+      const updated = mutate(p => {
+        const position = p.positions.find(pos => pos.ticker === ticker);
+        if (position) {
+          const sellPrice = sellPriceOverride ?? position.avgCost;
+          p.transactions.push({
+            ticker,
+            action: 'sell',
+            shares: position.shares,
+            price: sellPrice,
+            date: new Date().toISOString(),
+            reason: reason || (shadowEntry ? 'unspecified' : null),
+          });
+        }
+        p.positions = p.positions.filter(pos => pos.ticker !== ticker);
+        return p;
+      });
+      console.log(JSON.stringify(updated, null, 2));
       break;
     }
 
     case 'init': {
-      const p = load();
-      if (p.positions.length > 0) {
-        console.log(JSON.stringify({ message: 'Portfolio already exists', ...p }, null, 2));
-      } else {
+      const result = withFileLock(paths.PORTFOLIO_FILE, () => {
+        const p = load();
+        if (p.positions.length > 0) {
+          return { message: 'Portfolio already exists', ...p };
+        }
         save(p);
-        console.log(JSON.stringify({ message: 'Empty portfolio initialized', ...p }, null, 2));
-      }
+        return { message: 'Empty portfolio initialized', ...p };
+      });
+      console.log(JSON.stringify(result, null, 2));
       break;
     }
 
     default:
-      throw new FinstackError(`Unknown subcommand: ${sub}`, undefined, undefined, 'Use show|add|remove|init');
+      throw new FinstackError(
+        `Unknown subcommand: ${sub}`,
+        undefined,
+        undefined,
+        'Use show|add|remove|init',
+      );
   }
 }

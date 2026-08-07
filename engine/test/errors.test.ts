@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { FinstackError, formatErrorJSON } from '../src/errors';
 
 describe('FinstackError', () => {
@@ -13,7 +13,9 @@ describe('FinstackError', () => {
     expect(err.message).toBe('Cannot fetch NVDA quote');
     expect(err.source).toBe('yahoo');
     expect(err.reason).toBe('HTTP 403');
-    expect(err.suggestion).toBe('Retry later, or configure Polygon: finstack keys set polygon YOUR_KEY');
+    expect(err.suggestion).toBe(
+      'Retry later, or configure Polygon: finstack keys set polygon YOUR_KEY',
+    );
     expect(err.cached).toBeUndefined();
   });
 

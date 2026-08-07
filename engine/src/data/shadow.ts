@@ -1,5 +1,5 @@
-import { SHADOW_FILE } from '../paths';
-import { atomicWriteJSON, readJSONSafe } from '../fs';
+import { atomicWriteJSON, readJSONSafe, withFileLock } from '../fs';
+import { paths } from '../paths';
 
 interface StagedTranche {
   tranche: number;
@@ -37,7 +37,7 @@ interface Shadow {
   entries: ShadowEntry[];
 }
 
-export function loadShadow(file = SHADOW_FILE): Shadow {
+export function loadShadow(file = paths.SHADOW_FILE): Shadow {
   return readJSONSafe<Shadow>(file, { entries: [] });
 }
 
@@ -45,40 +45,56 @@ function save(data: Shadow, file: string): void {
   atomicWriteJSON(file, data);
 }
 
-export function createEntry(params: {
-  ticker: string;
-  action: string;
-  entryDate: string;
-  totalShares: number;
-  stagedPlan: StagedTranche[];
-  stopLoss: { price: number; reason: string };
-  takeProfit: { price: number; reason: string };
-  timeHorizon: string;
-  linkedThesis: string | null;
-  sourceJudge: string;
-  sourceAct: string;
-}, file = SHADOW_FILE): ShadowEntry {
-  const shadow = loadShadow(file);
-  const filledShares = params.stagedPlan
-    .filter(t => t.status === 'filled')
-    .reduce((sum, t) => sum + t.shares, 0);
-
-  const entry: ShadowEntry = {
-    id: `s${Date.now()}`,
-    ...params,
-    filledShares,
-    createdAt: new Date().toISOString(),
-    status: 'open',
-    exitPrice: null,
-    exitDate: null,
-    exitReason: null,
-  };
-  shadow.entries.push(entry);
-  save(shadow, file);
-  return entry;
+/**
+ * Read-modify-write shadow.json under a file lock. /act appends entries and
+ * `portfolio remove` closes them, which can overlap across sessions.
+ */
+function mutate<T>(file: string, fn: (shadow: Shadow) => T): T {
+  return withFileLock(file, () => {
+    const shadow = loadShadow(file);
+    const result = fn(shadow);
+    save(shadow, file);
+    return result;
+  });
 }
 
-export function findOpen(ticker: string, file = SHADOW_FILE): ShadowEntry | null {
+export function createEntry(
+  params: {
+    ticker: string;
+    action: string;
+    entryDate: string;
+    totalShares: number;
+    stagedPlan: StagedTranche[];
+    stopLoss: { price: number; reason: string };
+    takeProfit: { price: number; reason: string };
+    timeHorizon: string;
+    linkedThesis: string | null;
+    sourceJudge: string;
+    sourceAct: string;
+  },
+  file = paths.SHADOW_FILE,
+): ShadowEntry {
+  return mutate(file, shadow => {
+    const filledShares = params.stagedPlan
+      .filter(t => t.status === 'filled')
+      .reduce((sum, t) => sum + t.shares, 0);
+
+    const entry: ShadowEntry = {
+      id: `s${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+      ...params,
+      filledShares,
+      createdAt: new Date().toISOString(),
+      status: 'open',
+      exitPrice: null,
+      exitDate: null,
+      exitReason: null,
+    };
+    shadow.entries.push(entry);
+    return entry;
+  });
+}
+
+export function findOpen(ticker: string, file = paths.SHADOW_FILE): ShadowEntry | null {
   const shadow = loadShadow(file);
   return shadow.entries.find(e => e.ticker === ticker.toUpperCase() && e.status === 'open') || null;
 }
@@ -88,17 +104,19 @@ export function closeEntry(
   exitPrice: number,
   exitDate: string,
   exitReason: string,
-  file = SHADOW_FILE,
+  file = paths.SHADOW_FILE,
 ): void {
-  const shadow = loadShadow(file);
-  const entry = shadow.entries.find(e => e.ticker === ticker.toUpperCase() && e.status === 'open');
-  if (entry) {
-    entry.status = 'closed';
-    entry.exitPrice = exitPrice;
-    entry.exitDate = exitDate;
-    entry.exitReason = exitReason;
-  }
-  save(shadow, file);
+  mutate(file, shadow => {
+    const entry = shadow.entries.find(
+      e => e.ticker === ticker.toUpperCase() && e.status === 'open',
+    );
+    if (entry) {
+      entry.status = 'closed';
+      entry.exitPrice = exitPrice;
+      entry.exitDate = exitDate;
+      entry.exitReason = exitReason;
+    }
+  });
 }
 
-export type { ShadowEntry, Shadow, StagedTranche };
+export type { Shadow, ShadowEntry, StagedTranche };

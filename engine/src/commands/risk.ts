@@ -1,6 +1,8 @@
 import { loadShadow, type ShadowEntry } from '../data/shadow';
-import { PORTFOLIO_FILE, PROFILE_FILE } from '../paths';
+import { FinstackError } from '../errors';
 import { readJSONSafe } from '../fs';
+import { paths } from '../paths';
+import { validatePositiveNumber, validateStopVsEntry, validateTicker } from '../validation';
 
 interface Position {
   ticker: string;
@@ -11,7 +13,14 @@ interface Position {
 
 interface Portfolio {
   positions: Position[];
-  transactions: { ticker: string; action: string; shares: number; price: number; date: string; reason: string | null }[];
+  transactions: {
+    ticker: string;
+    action: string;
+    shares: number;
+    price: number;
+    date: string;
+    reason: string | null;
+  }[];
   updatedAt: string;
 }
 
@@ -51,10 +60,14 @@ export function calculateConcentration(
 
   const warnings: string[] = [];
   if (top1.weight > limits.single) {
-    warnings.push(`${top1.ticker} is ${top1.weight.toFixed(1)}% of portfolio (limit: ${limits.single}%)`);
+    warnings.push(
+      `${top1.ticker} is ${top1.weight.toFixed(1)}% of portfolio (limit: ${limits.single}%)`,
+    );
   }
   if (top3Weight > limits.top3) {
-    warnings.push(`Top 3 positions are ${top3Weight.toFixed(1)}% of portfolio (limit: ${limits.top3}%)`);
+    warnings.push(
+      `Top 3 positions are ${top3Weight.toFixed(1)}% of portfolio (limit: ${limits.top3}%)`,
+    );
   }
 
   return {
@@ -94,11 +107,14 @@ export function evaluateRiskGate(
 
   // Concentration check (post-trade)
   if (newWeight > limits.singlePosition) {
-    blocks.push(`${newTicker} would be ${newWeight.toFixed(1)}% of portfolio (limit: ${limits.singlePosition}%)`);
+    blocks.push(
+      `${newTicker} would be ${newWeight.toFixed(1)}% of portfolio (limit: ${limits.singlePosition}%)`,
+    );
   }
 
-  const sorted = [...positions, { ticker: newTicker, weight: newWeight }]
-    .sort((a, b) => b.weight - a.weight);
+  const sorted = [...positions, { ticker: newTicker, weight: newWeight }].sort(
+    (a, b) => b.weight - a.weight,
+  );
   const top3 = sorted.slice(0, 3).reduce((s, p) => s + p.weight, 0);
   if (top3 > limits.top3) {
     warnings.push(`Top 3 concentration would be ${top3.toFixed(1)}% (limit: ${limits.top3}%)`);
@@ -106,14 +122,20 @@ export function evaluateRiskGate(
 
   // Position risk check
   if (stopRiskPct !== null && stopRiskPct > limits.positionRisk) {
-    blocks.push(`Position risk at stop-loss: ${stopRiskPct.toFixed(1)}% of portfolio (limit: ${limits.positionRisk}%)`);
+    blocks.push(
+      `Position risk at stop-loss: ${stopRiskPct.toFixed(1)}% of portfolio (limit: ${limits.positionRisk}%)`,
+    );
   }
 
   // Drawdown circuit breaker
   if (drawdownPct > limits.drawdown) {
-    blocks.push(`Portfolio drawdown: ${drawdownPct.toFixed(1)}% (circuit breaker: ${limits.drawdown}%). Stop. Breathe. Run /reflect before trading.`);
+    blocks.push(
+      `Portfolio drawdown: ${drawdownPct.toFixed(1)}% (circuit breaker: ${limits.drawdown}%). Stop. Breathe. Run /reflect before trading.`,
+    );
   } else if (drawdownPct > limits.drawdown * 0.7) {
-    warnings.push(`Portfolio drawdown: ${drawdownPct.toFixed(1)}% — approaching circuit breaker (${limits.drawdown}%)`);
+    warnings.push(
+      `Portfolio drawdown: ${drawdownPct.toFixed(1)}% — approaching circuit breaker (${limits.drawdown}%)`,
+    );
   }
 
   return {
@@ -124,17 +146,17 @@ export function evaluateRiskGate(
 }
 
 function loadPortfolio(): Portfolio {
-  const data = readJSONSafe<Portfolio>(PORTFOLIO_FILE, {
+  const data = readJSONSafe<Portfolio>(paths.PORTFOLIO_FILE, {
     positions: [],
     transactions: [],
-    updatedAt: ''
+    updatedAt: '',
   });
   if (!data.transactions) data.transactions = [];
   return data as Portfolio;
 }
 
 function loadProfile(): { riskBudgetPct: number } {
-  const data = readJSONSafe<any>(PROFILE_FILE, { riskBudgetPct: 2 });
+  const data = readJSONSafe<any>(paths.PROFILE_FILE, { riskBudgetPct: 2 });
   return { riskBudgetPct: data.riskBudgetPct || 2 };
 }
 
@@ -143,56 +165,57 @@ export async function risk(args: string[]) {
 
   // Subcommand: size — position sizing calculator
   if (sub === 'size') {
-    const ticker = args[1]?.toUpperCase();
-    const entryStr = args[2];
-    const stopStr = args[3];
-    if (!ticker || !entryStr || !stopStr) {
-      console.error(JSON.stringify({ error: 'Usage: finstack risk size <ticker> <entry_price> <stop_price>' }));
-      process.exit(1);
-    }
-    const entry = parseFloat(entryStr);
-    const stop = parseFloat(stopStr);
-    if (entry <= 0 || stop <= 0) {
-      console.error(JSON.stringify({ error: 'Prices must be positive' }));
-      process.exit(1);
-    }
-    if (stop >= entry) {
-      console.error(JSON.stringify({ error: `Stop price ($${stop}) must be below entry price ($${entry}) for a long position` }));
-      process.exit(1);
-    }
+    const ticker = validateTicker(args[1]);
+    const entry = validatePositiveNumber(args[2], 'entry price');
+    const stop = validatePositiveNumber(args[3], 'stop price');
+    validateStopVsEntry(entry, stop);
+
     const portfolio = loadPortfolio();
     const profile = loadProfile();
     const portfolioValue = portfolio.positions.reduce((s, p) => s + p.shares * p.avgCost, 0);
 
     if (portfolioValue === 0) {
-      console.error(JSON.stringify({ error: 'Empty portfolio. Add positions first: finstack portfolio add <ticker> <shares> <avgCost>' }));
-      process.exit(1);
+      throw new FinstackError(
+        'Empty portfolio — cannot size a position against zero capital',
+        undefined,
+        'Position sizing is a percentage of total portfolio value',
+        'Add positions first: finstack portfolio add <ticker> <shares> <avgCost>',
+      );
     }
 
     const sizing = calculatePositionSize(portfolioValue, profile.riskBudgetPct, entry, stop);
-    const weight = portfolioValue > 0 ? (sizing.positionDollars / (portfolioValue + sizing.positionDollars)) * 100 : 0;
+    const weight =
+      portfolioValue > 0
+        ? (sizing.positionDollars / (portfolioValue + sizing.positionDollars)) * 100
+        : 0;
 
     // Run risk gate
     const existingWeights = portfolio.positions.map(p => ({
       ticker: p.ticker,
-      weight: (p.shares * p.avgCost / portfolioValue) * 100,
+      weight: ((p.shares * p.avgCost) / portfolioValue) * 100,
     }));
     const gate = evaluateRiskGate(ticker, weight, existingWeights, profile.riskBudgetPct, 0);
 
-    console.log(JSON.stringify({
-      ticker,
-      entry,
-      stop,
-      riskPerShare: +(Math.abs(entry - stop)).toFixed(2),
-      sizing: {
-        shares: sizing.shares,
-        positionDollars: sizing.positionDollars,
-        riskDollars: sizing.riskDollars,
-        riskBudgetPct: profile.riskBudgetPct,
-        weightPct: +weight.toFixed(1),
-      },
-      riskGate: gate,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          ticker,
+          entry,
+          stop,
+          riskPerShare: +Math.abs(entry - stop).toFixed(2),
+          sizing: {
+            shares: sizing.shares,
+            positionDollars: sizing.positionDollars,
+            riskDollars: sizing.riskDollars,
+            riskBudgetPct: profile.riskBudgetPct,
+            weightPct: +weight.toFixed(1),
+          },
+          riskGate: gate,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -202,9 +225,16 @@ export async function risk(args: string[]) {
   const profile = loadProfile();
 
   if (portfolio.positions.length === 0) {
-    console.log(JSON.stringify({
-      message: 'Empty portfolio. Add positions first: finstack portfolio add <ticker> <shares> <avgCost>',
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          message:
+            'Empty portfolio. Add positions first: finstack portfolio add <ticker> <shares> <avgCost>',
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 

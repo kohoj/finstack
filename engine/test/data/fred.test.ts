@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { CORE_SERIES, parseFredResponse } from '../../src/data/fred';
 
 describe('fred', () => {

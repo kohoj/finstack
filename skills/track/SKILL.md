@@ -5,15 +5,9 @@ description: |
   and SPY benchmark. Shows thesis lifecycle, cognitive alpha, behavioral cost
   in dollars. Use when asked to "track", "how am I doing", "show my alpha",
   "thesis status", "performance", or "track record".
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Glob
-  - WebSearch
 ---
 
-# /track — Quantified Mirror
+# track — Quantified Mirror
 
 You are a performance analyst holding up a mirror to the user's investment
 decisions. Not a cheerleader, not a critic — a mirror that reflects what
@@ -22,21 +16,32 @@ actually happened versus what the plan said should happen.
 ## Binary Resolution
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
-[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Update check
-_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
+_HOME="${FINSTACK_HOME:-$HOME/.finstack}"
+F="$_HOME/bin/finstack"
 
-# Auto-rebuild if source is newer than binary
-F="$_SK/engine/dist/finstack"
-if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
-  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
-  if [ -n "$_NEWEST" ]; then
-    echo "REBUILDING: source changed..."
-    (cd "$_SK" && bun run build 2>/dev/null) && echo "REBUILT" || echo "REBUILD_FAILED"
+_bun=$(command -v bun 2>/dev/null || { [ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun"; })
+
+_stale=1
+[ -x "$F" ] && _stale=$([ -n "$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)" ] && echo 1 || echo 0)
+
+if [ "$_stale" = "1" ] && [ -d "$_SK/engine/src" ]; then
+  if [ -z "$_bun" ]; then
+    echo "SETUP: installing Bun (one-time, into ~/.bun, no sudo)"
+    curl -fsSL https://bun.sh/install 2>/dev/null | bash >/dev/null 2>&1
+    _bun=$([ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun")
+  fi
+
+  if [ -z "$_bun" ]; then
+    echo "SETUP_FAILED: could not install Bun — see https://bun.sh"
+  else
+    mkdir -p "$_HOME/bin"
+    echo "BUILDING: compiling the finstack engine (first run only)"
+    (cd "$_SK" && "$_bun" install --silent >/dev/null 2>&1
+     "$_bun" build --compile engine/src/cli.ts --outfile "$F" >/dev/null 2>&1) \
+      && echo "BUILT: $F" || echo "BUILD_FAILED: run 'bun run build' in $_SK to see why"
   fi
 fi
 
@@ -58,11 +63,11 @@ approach based on what was learned before.
 ## Step 0: Determine Scope
 
 Parse the user's request:
-- **"/track"** (no args) → compact global dashboard
-- **"/track NVDA"** → decision replay for one ticker
-- **"/track alpha"** → full cognitive alpha breakdown
-- **"/track thesis"** → thesis lifecycle status
-- **"/track obituary"** → dead thesis review queue
+- **"how am I doing?"** → compact global dashboard
+- **"how did NVDA go?"** → decision replay for one ticker
+- **"show my alpha"** → full cognitive alpha breakdown
+- **"thesis status"** → thesis lifecycle status
+- **"any obituaries due?"** → dead thesis review queue
 
 ## Step 1: Gather Data
 
@@ -145,7 +150,7 @@ Read theses.json for dead theses past obituaryDueDate. For each:
 1. Read the original thesis and its kill reason
 2. For earnings conditions: run `$F earnings <ticker>` — check if the
    conditions have since reversed
-3. For event conditions: WebSearch for recent developments
+3. For event conditions: search the web for recent developments
 4. Verdict is based on **condition status, NOT price movement**
 5. A thesis is "premature kill" only if the falsification criteria have
    since un-falsified
@@ -188,9 +193,9 @@ in your browser for charts and allocation visualization."
 ## Natural Flow
 
 After track:
-- **"/judge [ticker]"** → re-evaluate a threatened thesis
-- **"/reflect"** → full reflection with track data
-- **"/sense"** → check for new signals
+- **"re-evaluate [ticker]"** → revisit a threatened thesis
+- **"review my decisions"** → full reflection using this data
+- **"any new signals?"** → check what has emerged
 - **"show pattern [name]"** → detail on a behavioral pattern
 
 ## Learning Deposit

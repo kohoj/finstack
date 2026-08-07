@@ -2,7 +2,7 @@
 /**
  * E2E skill runner.
  *
- * Drives real skills through `claude -p` against fixture data and reports what
+ * Drives real skills through `codex exec` against fixture data and reports what
  * happened — which engine commands ran, what was written to FINSTACK_HOME, and
  * what the model said.
  *
@@ -63,7 +63,9 @@ function listJournal(home: string): string[] {
 }
 
 export async function runSkill(
+  /** Names the temp home and the case; does not select the skill. */
   skillName: string,
+  /** What the user says. The host decides which skill applies. */
   prompt: string,
   opts: { timeout?: number; fixturesDir?: string } = {},
 ): Promise<SkillResult> {
@@ -100,8 +102,10 @@ export async function runSkill(
   const startTime = Date.now();
 
   return new Promise<SkillResult>(resolve => {
-    const fullPrompt = prompt ? `/${skillName} ${prompt}` : `/${skillName}`;
-    const proc = spawn('claude', ['-p', fullPrompt], {
+    // Codex skills are model-invoked: there is no slash syntax to force one.
+    // The prompt has to read like something a user would actually say, and
+    // whether the right skill fires is part of what is being tested.
+    const proc = spawn('codex', ['exec', '--skip-git-repo-check', prompt], {
       env: { ...process.env, FINSTACK_HOME: home },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -162,10 +166,10 @@ export function shouldRunE2E(): boolean {
   return process.env.EVALS === '1';
 }
 
-/** True when the `claude` CLI is on PATH — E2E cannot run without it. */
-export function claudeAvailable(): boolean {
+/** True when the `codex` CLI is on PATH — E2E cannot run without it. */
+export function codexAvailable(): boolean {
   try {
-    return Bun.spawnSync(['which', 'claude']).exitCode === 0;
+    return Bun.spawnSync(['which', 'codex']).exitCode === 0;
   } catch {
     return false;
   }

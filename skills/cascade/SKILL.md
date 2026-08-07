@@ -5,17 +5,9 @@ description: |
   capability — AI agents pursue parallel causal chains that no human can
   track simultaneously. Use when asked to "cascade", "trace the impact",
   "what does [event] mean for", "domino effect", "who gets hurt/helped by".
-allowed-tools:
-  - Agent
-  - Bash
-  - Read
-  - Write
-  - WebSearch
-  - WebFetch
-  - TaskCreate
 ---
 
-# /cascade — Trace the Dominoes
+# cascade — Trace the Dominoes
 
 You are a macro strategist who sees chain reactions. When a single event
 happens, you trace its consequences across industries, geographies, and
@@ -27,21 +19,32 @@ This is finstack's signature capability. Do it well.
 ## Binary Resolution
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
-[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Update check
-_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
+_HOME="${FINSTACK_HOME:-$HOME/.finstack}"
+F="$_HOME/bin/finstack"
 
-# Auto-rebuild if source is newer than binary
-F="$_SK/engine/dist/finstack"
-if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
-  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
-  if [ -n "$_NEWEST" ]; then
-    echo "REBUILDING: source changed..."
-    (cd "$_SK" && bun run build 2>/dev/null) && echo "REBUILT" || echo "REBUILD_FAILED"
+_bun=$(command -v bun 2>/dev/null || { [ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun"; })
+
+_stale=1
+[ -x "$F" ] && _stale=$([ -n "$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)" ] && echo 1 || echo 0)
+
+if [ "$_stale" = "1" ] && [ -d "$_SK/engine/src" ]; then
+  if [ -z "$_bun" ]; then
+    echo "SETUP: installing Bun (one-time, into ~/.bun, no sudo)"
+    curl -fsSL https://bun.sh/install 2>/dev/null | bash >/dev/null 2>&1
+    _bun=$([ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun")
+  fi
+
+  if [ -z "$_bun" ]; then
+    echo "SETUP_FAILED: could not install Bun — see https://bun.sh"
+  else
+    mkdir -p "$_HOME/bin"
+    echo "BUILDING: compiling the finstack engine (first run only)"
+    (cd "$_SK" && "$_bun" install --silent >/dev/null 2>&1
+     "$_bun" build --compile engine/src/cli.ts --outfile "$F" >/dev/null 2>&1) \
+      && echo "BUILT: $F" || echo "BUILD_FAILED: run 'bun run build' in $_SK to see why"
   fi
 fi
 
@@ -68,7 +71,7 @@ The user will describe an event:
 - "Apple announces car project cancellation"
 - "China bans rare earth exports"
 
-First, understand the event deeply. WebSearch for the specifics: how much was
+First, understand the event deeply. search the web for the specifics: how much was
 cut? What was the market expecting? Is this confirmed or rumored? Get the facts
 right before tracing consequences.
 
@@ -94,27 +97,37 @@ Tracing 4 chains from "TSMC cuts capex 15%":
 4. Samsung competitive response — potential share shift
 ```
 
-## Step 2: Deploy Chain-Tracing Agents
+## Step 2: Deploy Chain Tracers
 
-Spawn agents **in parallel**, one per chain. Each agent:
+Dispatch one delegated worker per chain, in parallel. Use the host's default
+agent type, model, and reasoning effort.
+
+Unlike `judge`, ordering does not matter here — the chains are independent by
+construction, which is why they can run at once. What they cannot do is talk to
+each other, so each is asked to report its own intersections and the synthesis
+step stitches them together.
+
+**If delegation is unavailable in this environment**, trace the chains
+sequentially in one pass and say that is what happened. The output is still
+useful; it is just slower and the chains share context, so watch for one
+chain's framing bleeding into the next.
 
 ```
-Spawn an Agent with model: "sonnet" for each chain:
-
-"You are tracing the causal impact of [EVENT] on [SPECIFIC CHAIN].
+You are tracing the causal impact of [EVENT] on [SPECIFIC CHAIN].
 
 Your job:
 1. Trace 2-3 links deep in this specific chain
 2. At each link, assess: how likely is this consequence? (high/moderate/speculative)
-3. Quantify where possible: 'ASML orders likely revised down 5-10%' not 'ASML may be affected'
-4. Use WebSearch to find supporting evidence or counterarguments
+3. Quantify where possible: "ASML orders likely revised down 5-10%" not "ASML may be affected"
+4. Search for supporting evidence or counterarguments
 5. If this chain connects to another chain, note the intersection
 
 Write concisely. One paragraph per link. End with your single most important
-insight about this chain."
+insight about this chain.
 ```
 
-Use TaskCreate to show the user which chains are running.
+Tell the user which chains are running before you dispatch them — a cascade
+takes a while, and naming the chains up front is what makes the wait legible.
 
 ## Step 3: Synthesis
 
@@ -169,7 +182,7 @@ real numbers in your chain analysis:
   rate environment has historically compressed PE multiples for
   companies with >80% revenue growth expectations."
 
-If FRED key is not configured, use WebSearch for current macro data.
+If FRED key is not configured, search the web for current macro data.
 Always cite specific numbers, not generalities.
 
 ## Step 4: Output
@@ -223,10 +236,10 @@ perspectives.
 ## Natural Flow
 
 After the cascade:
-- **"/judge [ticker]"** → deep-dive the most affected name
+- **"judge [ticker]"** → deep-dive the most affected name
 - **"expand chain 3"** → show full detail on one specific chain
-- **"/sense"** → check if new signals have emerged since
-- **"/scenario [name]"** → quantify portfolio impact
+- **"any new signals?"** → check what has emerged since
+- **"quantify the impact"** → run a scenario against the portfolio
 - **"what if [variation]?"** → re-run with a different scenario
 
 ## Learning Deposit

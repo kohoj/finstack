@@ -1,0 +1,41 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "finstack",
+  "version": "0.7.0",
+  "description": "Adversarial investment research with memory. Argues both sides of a thesis, traces chain reactions across parallel causal paths, and measures what your execution costs you against a disciplined counterfactual.",
+  "author": {
+    "name": "kohoj",
+    "url": "https://github.com/kohoj"
+  },
+  "homepage": "https://github.com/kohoj/finstack",
+  "repository": "https://github.com/kohoj/finstack",
+  "license": "MIT",
+  "keywords": [
+    "investing",
+    "research",
+    "portfolio",
+    "risk",
+    "decision-journal",
+    "finance"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "finstack",
+    "shortDescription": "Investment research that argues back and remembers your blind spots",
+    "longDescription": "Nine skills covering the full research loop: scan for signals that matter to your holdings, produce memorandums with traceable claims, subject a thesis to an adversarial bull-vs-bear exchange, size a position through a risk gate, trace an event's chain reactions, and separate luck from skill in your own decisions.\n\nfinstack maintains a shadow portfolio — a disciplined version of you that follows every plan exactly. The gap between it and your real trades is a number, attributed to a named behavioral pattern. That is the one thing a portfolio tracker cannot tell you.\n\nAll state lives in ~/.finstack as human-readable, git-tracked JSON. Works with no API keys; free keys unlock deeper data.",
+    "developerName": "kohoj",
+    "category": "Finance",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/kohoj/finstack",
+    "brandColor": "#10A37F",
+    "defaultPrompt": [
+      "Use finstack to check my portfolio for concentration risk",
+      "Use finstack to judge whether I should buy NVDA",
+      "Use finstack to find high-margin companies under $50B",
+      "Use finstack to trace what a TSMC capex cut means for my holdings"
+    ]
+  }
+}

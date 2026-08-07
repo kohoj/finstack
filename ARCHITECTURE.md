@@ -4,17 +4,17 @@
 
 ## Design Philosophy
 
-finstack is built on a **dual-layer architecture**: a lightweight **data layer** (compiled binary) and a powerful **cognitive layer** (Claude Code skills).
+finstack is built on a **dual-layer architecture**: a lightweight **data layer** (compiled binary) and a powerful **cognitive layer** (Codex skills).
 
 ### Why This Split?
 
 **Data operations are deterministic.** Fetching a quote, parsing SEC filings, caching responses — these are solved problems. They need speed, reliability, and offline-first behavior. A compiled binary delivers this with zero startup time and predictable resource usage.
 
-**Cognition is emergent.** Adversarial reasoning, chain-reaction tracing, pattern recognition across 100+ journal entries — these require the full power of a frontier LLM with 1M context. The skills orchestrate Claude Code's reasoning capabilities, not by calling narrow functions, but by shaping how it thinks.
+**Cognition is emergent.** Adversarial reasoning, chain-reaction tracing, pattern recognition across 100+ journal entries — these require the full power of a frontier LLM with 1M context. The skills orchestrate the model's reasoning, not by calling narrow functions, but by shaping how it thinks.
 
 This separation means:
 - The engine can be rebuilt in 2 seconds (Bun compile)
-- Skills can be modified while Claude Code is running (hot reload)
+- Skills are plain Markdown, editable without a rebuild
 - Data fetching never blocks AI reasoning
 - The system degrades gracefully (no API key? Use stale cache or web search)
 
@@ -187,7 +187,7 @@ description of what is asserted.
 ### Skills
 
 **Location**: `{sense,research,judge,act,cascade,track,reflect,screen,review}/SKILL.md`  
-**Purpose**: Orchestrate Claude Code's reasoning capabilities
+**Purpose**: Orchestrate the model's reasoning
 
 Each skill is a **prompt template** with three sections:
 
@@ -195,31 +195,43 @@ Each skill is a **prompt template** with three sections:
 2. **Bash preamble**: Environment setup — locate engine binary, check version, rebuild if needed
 3. **Instruction body**: Step-by-step reasoning protocol
 
-**The preamble pattern** (from `sense/SKILL.md`):
+**The preamble pattern**, identical across all nine skills (asserted by
+`check:docs`) — abridged here to the parts that carry a decision:
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
-[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+# The host sets CODEX_PLUGIN_ROOT for an installed plugin; the git fallback
+# covers working directly in a clone.
+_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Auto-rebuild if source is newer than binary
-F="$_SK/engine/dist/finstack"
-if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
-  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
-  if [ -n "$_NEWEST" ]; then
-    (cd "$_SK" && bun run build 2>/dev/null)
-  fi
-fi
+F="${FINSTACK_HOME:-$HOME/.finstack}/bin/finstack"
 
+# ... if the binary is missing or older than the source, install Bun if
+# needed and compile. Then:
 [ -x "$F" ] && echo "ENGINE: $F" || echo "ENGINE_MISSING"
 ```
 
-This ensures:
-- Skills work whether invoked from the finstack repo or any other directory
-- The engine auto-rebuilds when source files change (developer experience)
-- Skills degrade gracefully if the binary is missing (web search fallback)
+Three decisions are embedded here.
 
-**Why SKILL.md?** Claude Code loads these as **context-injected prompts**. They don't just tell Claude what to do — they shape HOW it reasons. `/judge` doesn't call a "judgment API" — it orchestrates a multi-turn adversarial exchange where Bull builds the case, Bear attacks the weakest assumption with historical evidence, and a final synthesis delivers a verdict with conditional confidence.
+**The binary lives outside the plugin directory.** Installed plugins land in
+`~/.codex/plugins/cache/$MARKETPLACE/$PLUGIN/$VERSION/` — that path contains
+the version, so an upgrade would orphan anything written into it, and a
+read-only cache would fail the write outright. `~/.finstack/bin/` survives
+upgrades and is somewhere the user already owns.
+
+**It builds on first use rather than shipping precompiled.** Three platform
+binaries would add ~220MB to every `marketplace add`. Compiling takes about
+two seconds, once, and produces a binary matched to the actual machine.
+
+**It installs Bun itself if missing.** Bun's installer needs no sudo and
+writes only to `~/.bun`. Telling the user to go install a toolchain before
+they can ask their first question is a worse trade than doing it for them.
+
+The result: skills work from an installed plugin or a clone, the engine
+rebuilds when source changes, and `ENGINE_MISSING` is a text signal the model
+reads to decide whether to degrade to web search.
+
+**Why SKILL.md?** The host loads these as **context-injected prompts**. They do not just say what to do — they shape how the model reasons. `judge` does not call a "judgment API" — it orchestrates a multi-turn adversarial exchange where Bull builds the case, Bear attacks the weakest assumption with historical evidence, and a final synthesis delivers a verdict with conditional confidence.
 
 ### Storage Schema
 
@@ -256,7 +268,7 @@ Every state file is JSON (human-readable, `git diff`-able, auditable). The direc
 *lost* one. Every state mutation is a read-modify-write cycle, and two processes
 interleaving both read the same base and both write — so one update disappears.
 This is reachable in normal use: skills run engine commands in parallel, and a
-second Claude Code session can be open at any time.
+second Codex session can be open at any time.
 
 Measured before the fix, 20 parallel `portfolio add` calls recorded 17 of 20
 transactions. 15 parallel `regime add` calls recorded 12.
@@ -356,7 +368,7 @@ never fail.
 ```
 User types: /sense
     ↓
-Claude Code loads: sense/SKILL.md
+Codex loads: skills/sense/SKILL.md
     ↓
 Preamble executes (bash):
   - Locate engine binary at _SK/engine/dist/finstack
@@ -589,44 +601,21 @@ fi
 
 **Developer experience**: Modify `engine/src/commands/quote.ts` → save → invoke `/sense` → engine auto-rebuilds → new code runs. No manual build step.
 
-### Remote Version Check
+### Updates
 
-**Implementation**: `bin/finstack-update-check`  
-**Trigger**: Skill preamble (every invocation) OR SessionStart hook (team mode)
-
-```bash
-_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
-```
-
-**What it does**:
-1. Check if `config.yaml:update_check` is enabled
-2. Read `~/.finstack/.last-version-check` (cache, 24-hour TTL)
-3. If stale: fetch remote VERSION from GitHub
-4. Compare with local `~/.finstack/.installed-version`
-5. If remote > local: print update message
-6. Write new `.last-version-check` timestamp
-
-**Why cache?** Avoid hitting GitHub on every skill invocation. 24-hour TTL balances freshness vs network overhead.
-
-### Team Mode
-
-**Purpose**: Shared finstack installation across a team  
-**Setup**: `./setup --team`
-
-Enables:
-- `auto_upgrade: true` in config.yaml
-- `update_check: true`
-- Registers Claude Code SessionStart hook
-
-**Hook**: `bin/finstack-session-update`
+Codex owns this now:
 
 ```bash
-# Runs on every Claude Code session start
-# Checks remote version → git pull → bun install → rebuild
+codex plugin marketplace upgrade
 ```
 
-**Why SessionStart?** Ensures the team always runs the latest version without manual `git pull`. The hook runs BEFORE Claude Code becomes interactive, so rebuilds don't interrupt workflows.
+finstack previously carried its own version-check script and a SessionStart
+hook that pulled and rebuilt on every session. Both were deleted with the move
+to a plugin — reimplementing what the host already does means two update paths
+that can disagree, and the loser is whichever one the user forgets about.
+
+The engine still rebuilds itself when its source is newer than the binary, so
+upgrading the plugin is enough; the next skill invocation picks up the change.
 
 ## Testing Strategy
 
@@ -680,7 +669,7 @@ run together, all writing into one directory.
 
 ### E2E
 
-`test/skill-e2e/` drives real skills through `claude -p` against fixture data.
+`test/skill-e2e/` drives real skills through `codex exec` against fixture data.
 Gated behind `EVALS=1` because it costs API calls:
 
 ```bash
@@ -694,7 +683,7 @@ flaky without testing anything the prose is supposed to guarantee.
 
 **Run it by hand after changing a SKILL.md**, which is the only time it can
 tell you anything. It is deliberately not in CI: a skill is a prompt, so the
-suite has to start real Claude Code sessions, and running that on a schedule
+suite has to start real Codex sessions, and running that on a schedule
 spends API budget re-verifying files that have not changed. Four harness tests
 do run in the normal suite — they check the runner itself without spending
 anything.
@@ -736,31 +725,39 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 
 ### Adding a New Skill
 
-1. **Create skill directory**: `mkdir myskill`
+1. **Create the directory**: `mkdir -p skills/myskill`
 
-2. **Write SKILL.md**: `myskill/SKILL.md`
+2. **Write SKILL.md**:
 
 ```markdown
 ---
 name: myskill
-description: What this skill does
-allowed-tools:
-  - Bash
-  - Read
-  - Write
+description: |
+  What this skill does, in a sentence or two.
+  Use when asked to "...", "...", or "...".
 ---
 
-# /myskill — Purpose
+# myskill — Purpose
 
-[Preamble: locate engine, set $F]
+## Binary Resolution
 
+[Copy the preamble verbatim from any existing skill]
+
+## Learnings Context
 ## Step 1: ...
 ## Step 2: ...
+## Learning Deposit
 ```
 
-3. **Symlink**: `ln -s finstack/myskill ~/.claude/skills/myskill`
+3. **Register it** in the `SKILLS` array in `scripts/check-docs.ts`
 
-4. **Invoke**: `/myskill` in Claude Code
+4. **Restart Codex** to pick it up
+
+The `description` is the entire trigger mechanism. Skills are model-invoked —
+there is no slash command — so it must name the phrasings a user would actually
+reach for. `check:docs` verifies the preamble matches the other nine and that
+the Learnings sections carry their guidance, both of which have silently
+drifted before.
 
 ### Adding a New Data Source
 

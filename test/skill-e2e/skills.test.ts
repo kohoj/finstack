@@ -1,7 +1,7 @@
 /**
  * E2E tests for all nine skills.
  *
- * Each case drives a real skill through `claude -p` against fixture state and
+ * Each case drives a real skill through `codex exec` against fixture state and
  * asserts its structural contract: the engine commands it invokes, what it
  * writes to FINSTACK_HOME, and the markers its documented output format
  * requires.
@@ -16,13 +16,13 @@
  */
 import { afterEach, describe, expect, it } from 'bun:test';
 import { join } from 'node:path';
-import { claudeAvailable, runSkill, type SkillResult, shouldRunE2E } from './runner';
+import { codexAvailable, runSkill, type SkillResult, shouldRunE2E } from './runner';
 
 const FIXTURES = join(import.meta.dir, 'fixtures');
 const TIMEOUT = 5 * 60 * 1000;
 const CASE_TIMEOUT = TIMEOUT + 30_000;
 
-const RUN = shouldRunE2E() && claudeAvailable();
+const RUN = shouldRunE2E() && codexAvailable();
 
 // Tests own the test home so they can inspect it; release it afterwards.
 let active: SkillResult | undefined;
@@ -46,7 +46,7 @@ describe.skipIf(!RUN)('/sense', () => {
   it(
     'scans sources and writes a briefing',
     async () => {
-      const r = await run('sense');
+      const r = await run('sense', 'Any signals I should know about today?');
 
       expect(r.success).toBe(true);
       // sense reads the user's world before scanning it — a briefing that
@@ -62,7 +62,10 @@ describe.skipIf(!RUN)('/research', () => {
   it(
     'gathers financials and writes a memo',
     async () => {
-      const r = await run('research', 'NVDA');
+      const r = await run(
+        'research',
+        'Research NVDA for me — I want a real memo, not a metrics dump.',
+      );
 
       expect(r.success).toBe(true);
       expect(r.engineCommands).toContain('financials');
@@ -74,7 +77,10 @@ describe.skipIf(!RUN)('/research', () => {
   it(
     'reports numbers in context rather than as a table',
     async () => {
-      const r = await run('research', 'NVDA');
+      const r = await run(
+        'research',
+        'Research NVDA for me — I want a real memo, not a metrics dump.',
+      );
 
       // The skill explicitly forbids a metrics dump: every number must answer
       // "so what". A bare `PE: 45.2x | PB: 12.3x` line is the failure mode.
@@ -88,7 +94,7 @@ describe.skipIf(!RUN)('/judge', () => {
   it(
     'runs an adversarial exchange and registers a thesis',
     async () => {
-      const r = await run('judge', 'NVDA');
+      const r = await run('judge', 'Should I buy NVDA?');
 
       expect(r.success).toBe(true);
       expect(r.engineCommands).toContain('quote');
@@ -108,7 +114,7 @@ describe.skipIf(!RUN)('/judge', () => {
   it(
     'appends to theses.json without dropping existing entries',
     async () => {
-      const r = await run('judge', 'AMD');
+      const r = await run('judge', 'Should I buy AMD?');
 
       const theses = r.readHomeFile('theses.json');
       expect(theses).not.toBeNull();
@@ -125,7 +131,7 @@ describe.skipIf(!RUN)('/act', () => {
     async () => {
       // No journal entry exists for TSLA in the fixtures. The skill's first
       // gate exists to stop impulse trades, so this must not produce a plan.
-      const r = await run('act', 'TSLA');
+      const r = await run('act', 'What should I do about TSLA? Give me a position size.');
 
       expect(r.transcript).toMatch(/judge/i);
     },
@@ -135,7 +141,7 @@ describe.skipIf(!RUN)('/act', () => {
   it(
     'sizes a position through the risk gate',
     async () => {
-      const r = await run('act', 'NVDA');
+      const r = await run('act', 'What should I do about NVDA? Give me a position size.');
 
       expect(r.success).toBe(true);
       // Sizing is computed, never estimated by the model.
@@ -149,7 +155,7 @@ describe.skipIf(!RUN)('/cascade', () => {
   it(
     'traces chains and maps them onto holdings',
     async () => {
-      const r = await run('cascade', 'TSMC cuts capital expenditure 20%');
+      const r = await run('cascade', 'What does a 20% TSMC capex cut mean for my holdings?');
 
       expect(r.success).toBe(true);
       expect(journalMatching(r, 'cascade-').length).toBeGreaterThan(0);
@@ -166,7 +172,7 @@ describe.skipIf(!RUN)('/track', () => {
   it(
     'compares the real portfolio against the shadow',
     async () => {
-      const r = await run('track');
+      const r = await run('track', 'How am I doing? Show me the alpha breakdown.');
 
       expect(r.success).toBe(true);
       expect(r.engineCommands).toContain('alpha');
@@ -180,7 +186,7 @@ describe.skipIf(!RUN)('/reflect', () => {
   it(
     'separates process from outcome and records patterns',
     async () => {
-      const r = await run('reflect');
+      const r = await run('reflect', 'Review my decisions — what patterns do you see?');
 
       expect(r.success).toBe(true);
       expect(journalMatching(r, 'reflect-').length).toBeGreaterThan(0);
@@ -197,7 +203,7 @@ describe.skipIf(!RUN)('/screen', () => {
   it(
     'runs a preset screen',
     async () => {
-      const r = await run('screen', '--preset growth --limit 3');
+      const r = await run('screen', 'Find me three growth stocks.');
 
       expect(r.success).toBe(true);
       expect(r.engineCommands).toContain('screen');
@@ -208,7 +214,7 @@ describe.skipIf(!RUN)('/screen', () => {
   it(
     'writes no state',
     async () => {
-      const r = await run('screen', '--preset value --limit 3');
+      const r = await run('screen', 'Find me three value stocks.');
 
       // screen is a search, not a decision. It is the one skill that records
       // nothing — see CONTRIBUTING.md#architecture-constraints.
@@ -222,7 +228,7 @@ describe.skipIf(!RUN)('/review', () => {
   it(
     'aggregates a period into a narrative',
     async () => {
-      const r = await run('review', '--period week');
+      const r = await run('review', 'How did this week go?');
 
       expect(r.success).toBe(true);
       expect(r.engineCommands).toContain('review');
@@ -241,8 +247,8 @@ describe('runner', () => {
     if (original) process.env.EVALS = original;
   });
 
-  it('reports claude availability as a boolean', () => {
-    expect(typeof claudeAvailable()).toBe('boolean');
+  it('reports codex availability as a boolean', () => {
+    expect(typeof codexAvailable()).toBe('boolean');
   });
 
   it('returns a result rather than throwing when the skill does not exist', async () => {

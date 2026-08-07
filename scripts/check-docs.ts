@@ -13,9 +13,8 @@
  *   ARCHITECTURE.md said "15 commands"      (there were 23)
  *   CHANGELOG.md said "25 engine commands"  (there were 23)
  *   ARCHITECTURE.md listed 7 skills         (there were 9)
- *   act/SKILL.md used Glob without declaring it in allowed-tools
- *   sense, research, reflect declared Agent and never spawned one
  *   review/SKILL.md's preamble had silently diverged from the other eight
+ *   review/SKILL.md lost the guidance around its Learnings sections
  *
  * A check is only worth adding if it would have caught a real mistake. Prose
  * that cannot go stale is not checked.
@@ -26,7 +25,8 @@ import { join } from 'node:path';
 
 const ROOT = join(import.meta.dir, '..');
 const CLI_FILE = join(ROOT, 'engine', 'src', 'cli.ts');
-const SETUP_FILE = join(ROOT, 'setup');
+const SKILLS_DIR = join(ROOT, 'skills');
+const PLUGIN_MANIFEST = join(ROOT, '.codex-plugin', 'plugin.json');
 
 /** Skills, in the canonical order used by setup and the docs. */
 export const SKILLS = [
@@ -100,67 +100,6 @@ export function extractSkillCountClaims(doc: string): number[] {
   return counts;
 }
 
-/** The allowed-tools list from a SKILL.md YAML frontmatter. */
-export function extractAllowedTools(content: string): string[] {
-  const fm = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!fm) return [];
-
-  const block = fm[1].match(/allowed-tools:\s*\n((?:\s*-\s*\w+\s*\n?)+)/);
-  if (!block) return [];
-
-  const tools: string[] = [];
-  for (const m of block[1].matchAll(/-\s*(\w+)/g)) {
-    tools.push(m[1]);
-  }
-  return tools.sort();
-}
-
-/**
- * Tools a skill's body actually needs.
- *
- * Skills are prose, so a tool can be required without ever being named — a
- * step that says "look up the current price" needs WebSearch, and one that
- * reads `~/.finstack/journal/*<ticker>*` needs Glob. Matching only on the
- * literal tool name would report those as unused and push authors to delete a
- * declaration the skill depends on at runtime.
- *
- * So each tool has two kinds of evidence: the explicit name, and the phrasing
- * that implies it. False negatives here are worse than false positives — a
- * missing declaration fails at runtime, while a spare one is harmless.
- */
-export function extractUsedTools(content: string): string[] {
-  const body = content
-    .replace(/^---\n[\s\S]*?\n---/, '')
-    // Drop negated instructions before matching. research/SKILL.md says
-    // "don't ask the user who the peers are" — evidence that the skill does
-    // NOT need AskUserQuestion, which a naive match reads as the opposite.
-    .replace(/\b(?:do ?n[o']t|never|rather than|instead of|without)\b[^.\n]*/gi, '');
-  const used = new Set<string>();
-
-  const evidence: Record<string, RegExp[]> = {
-    // Explicit, or any instruction to read a glob-shaped path.
-    Glob: [/\bGlob\b/, /~\/\.finstack\/\w+\/\*/, /\bjournal\/\*/],
-    Grep: [/\bGrep\b/, /\bsearch (?:through|across) (?:the )?journal/i],
-    // Spawning subagents — named directly or described.
-    Agent: [/\bAgent\b/, /\bspawn\b[^.\n]*\bagent/i, /\bdeploy\b[^.\n]*\bagent/i],
-    TaskCreate: [/\bTaskCreate\b/],
-    TaskUpdate: [/\bTaskUpdate\b/],
-    // Any instruction to consult the user counts.
-    AskUserQuestion: [/\bAskUserQuestion\b/, /\bask the user\b/i, /\bask them\b/i],
-    // Any instruction to consult the web counts.
-    WebSearch: [/\bWebSearch\b/, /\bsearch the web\b/i, /\blook up\b[^.\n]*\b(price|news|filing)/i],
-    WebFetch: [/\bWebFetch\b/, /\bfetch\b[^.\n]*\b(article|page|url)/i],
-  };
-
-  for (const [tool, patterns] of Object.entries(evidence)) {
-    if (patterns.some(re => re.test(body))) used.add(tool);
-  }
-
-  // Bash, Read, and Write are used by every skill via the preamble and the
-  // journal deposit, so asserting on them would be noise.
-  return [...used].sort();
-}
-
 /** The bash preamble block, normalized for comparison. */
 export function extractPreamble(content: string): string | null {
   const m = content.match(/```bash\n([\s\S]*?)```/);
@@ -188,17 +127,14 @@ export function extractSkillReferences(content: string, self: string): string[] 
   return [...refs].sort();
 }
 
-/** Skill names registered in the setup script's SKILLS array. */
-export function extractSetupSkills(setupSource: string): string[] {
-  const m = setupSource.match(/SKILLS=\(([^)]+)\)/);
-  if (!m) return [];
-  return m[1].trim().split(/\s+/).sort();
-}
-
 // ── Checks ──────────────────────────────────────────────────────────────────
 
+function readVersion(): string {
+  return readFileSync(join(ROOT, 'VERSION'), 'utf-8').trim();
+}
+
 function readSkill(name: string): string | null {
-  const file = join(ROOT, name, 'SKILL.md');
+  const file = join(SKILLS_DIR, name, 'SKILL.md');
   return existsSync(file) ? readFileSync(file, 'utf-8') : null;
 }
 
@@ -279,56 +215,44 @@ export function runChecks(): CheckResult[] {
     });
   }
 
-  // 5. setup registers exactly the skills that exist.
-  if (existsSync(SETUP_FILE)) {
-    const inSetup = extractSetupSkills(readFileSync(SETUP_FILE, 'utf-8'));
-    const missing = presentSkills.filter(s => !inSetup.includes(s));
-    const extra = inSetup.filter(s => !(presentSkills as readonly string[]).includes(s));
+  // 5. The plugin manifest agrees with what is on disk.
+  //
+  //    Codex reads .codex-plugin/plugin.json to find the skills. A skill that
+  //    exists but sits outside the declared directory is invisible to the
+  //    host — it simply never fires, with no error anywhere.
+  if (existsSync(PLUGIN_MANIFEST)) {
+    const manifest = JSON.parse(readFileSync(PLUGIN_MANIFEST, 'utf-8'));
+
     results.push({
-      check: 'setup registers every skill',
-      pass: missing.length === 0 && extra.length === 0,
+      check: 'plugin.json version matches VERSION',
+      pass: manifest.version === readVersion(),
       details:
-        missing.length > 0
-          ? `SKILL.md exists but not in setup: ${missing.join(', ')}`
-          : extra.length > 0
-            ? `In setup but no SKILL.md: ${extra.join(', ')}`
-            : undefined,
+        manifest.version !== readVersion()
+          ? `Manifest says ${manifest.version}, VERSION says ${readVersion()}`
+          : undefined,
+    });
+
+    // The manifest points at a directory; every skill must live under it.
+    const declared = String(manifest.skills ?? '')
+      .replace(/^\.\//, '')
+      .replace(/\/$/, '');
+    results.push({
+      check: 'plugin.json points at the skills directory',
+      pass: declared === 'skills',
+      details: declared !== 'skills' ? `Manifest declares "${manifest.skills}"` : undefined,
+    });
+
+    // defaultPrompt is the first thing a new user sees on the install screen.
+    // An entry naming a skill that does not exist would be a dead end.
+    const prompts: string[] = manifest.interface?.defaultPrompt ?? [];
+    results.push({
+      check: 'plugin.json has starter prompts',
+      pass: prompts.length > 0,
+      details: prompts.length === 0 ? 'interface.defaultPrompt is empty' : undefined,
     });
   }
 
-  // 6. allowed-tools covers what the body does.
-  //
-  //    Only under-declaration fails. A tool a skill uses but does not declare
-  //    is unavailable at runtime, so the step silently does not happen —
-  //    act/SKILL.md instructed a Glob over the journal without declaring Glob.
-  //
-  //    Over-declaration is reported but does not fail: the detector infers
-  //    intent from prose, so it cannot be certain a declaration is dead, and
-  //    the cost of a spare entry is zero while the cost of a wrong deletion is
-  //    a broken skill.
-  for (const skill of presentSkills) {
-    const content = readSkill(skill) as string;
-    const declared = extractAllowedTools(content);
-    const used = extractUsedTools(content);
-
-    const undeclared = used.filter(t => !declared.includes(t));
-    const unused = declared.filter(
-      t => !['Bash', 'Read', 'Write'].includes(t) && !used.includes(t),
-    );
-
-    results.push({
-      check: `/${skill} declares the tools it uses`,
-      pass: undeclared.length === 0,
-      details:
-        undeclared.length > 0
-          ? `Used but not declared: ${undeclared.join(', ')}`
-          : unused.length > 0
-            ? `note: declared but no usage detected: ${unused.join(', ')}`
-            : undefined,
-    });
-  }
-
-  // 7. Every skill shares one preamble.
+  // 6. Every skill shares one preamble.
   //    Nine copies of the same 19 lines, so a fix to one silently leaves eight
   //    behind. SKILL.md has no include mechanism, so this is enforced instead.
   {
@@ -356,7 +280,7 @@ export function runChecks(): CheckResult[] {
     });
   }
 
-  // 8. Every skill carries the shared scaffolding.
+  // 7. Every skill carries the shared scaffolding.
   //
   //    review/SKILL.md had both its Learnings Context and Learning Deposit
   //    sections reduced to a bare code block, dropping the guidance that tells

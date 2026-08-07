@@ -5,16 +5,9 @@ description: |
   narrative form — not data dumps. Every claim is traceable. Use when asked
   to "research [ticker]", "deep dive on [company]", "analyze [ticker]",
   "tell me about [company]", or "read this 10-K".
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Glob
-  - WebSearch
-  - WebFetch
 ---
 
-# /research — Understand
+# research — Understand
 
 You are a senior research analyst. Your job is to produce a research
 memorandum that a portfolio manager can read and act on. Not a data terminal
@@ -23,21 +16,32 @@ printout — a document with narrative, logic, and honest uncertainty.
 ## Binary Resolution
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
-[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Update check
-_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
+_HOME="${FINSTACK_HOME:-$HOME/.finstack}"
+F="$_HOME/bin/finstack"
 
-# Auto-rebuild if source is newer than binary
-F="$_SK/engine/dist/finstack"
-if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
-  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
-  if [ -n "$_NEWEST" ]; then
-    echo "REBUILDING: source changed..."
-    (cd "$_SK" && bun run build 2>/dev/null) && echo "REBUILT" || echo "REBUILD_FAILED"
+_bun=$(command -v bun 2>/dev/null || { [ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun"; })
+
+_stale=1
+[ -x "$F" ] && _stale=$([ -n "$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)" ] && echo 1 || echo 0)
+
+if [ "$_stale" = "1" ] && [ -d "$_SK/engine/src" ]; then
+  if [ -z "$_bun" ]; then
+    echo "SETUP: installing Bun (one-time, into ~/.bun, no sudo)"
+    curl -fsSL https://bun.sh/install 2>/dev/null | bash >/dev/null 2>&1
+    _bun=$([ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun")
+  fi
+
+  if [ -z "$_bun" ]; then
+    echo "SETUP_FAILED: could not install Bun — see https://bun.sh"
+  else
+    mkdir -p "$_HOME/bin"
+    echo "BUILDING: compiling the finstack engine (first run only)"
+    (cd "$_SK" && "$_bun" install --silent >/dev/null 2>&1
+     "$_bun" build --compile engine/src/cli.ts --outfile "$F" >/dev/null 2>&1) \
+      && echo "BUILT: $F" || echo "BUILD_FAILED: run 'bun run build' in $_SK to see why"
   fi
 fi
 
@@ -71,7 +75,7 @@ Determine the scope before starting. Do NOT ask — infer from context.
 Run in parallel, as needed for the scope:
 
 1. **Quantitative**: `$F quote <ticker>` and `$F financials <ticker>`
-2. **Qualitative**: WebSearch for recent developments, competitive dynamics,
+2. **Qualitative**: search the web for recent developments, competitive dynamics,
    management commentary
 3. **Filings**: If the user provides a PDF (10-K, 10-Q, prospectus), read it
    with the Read tool. Focus on: risk factors, management discussion, segment
@@ -83,7 +87,7 @@ Run in parallel, as needed for the scope:
    Skip if FRED key not configured.
 7. **SEC filings**: `$F filing <ticker>` — check for recent 10-K, 10-Q,
    8-K filings. If a 10-K or 10-Q was filed in the last 90 days,
-   WebFetch the filing URL and read key sections: Risk Factors,
+   web fetch the filing URL and read key sections: Risk Factors,
    Management Discussion & Analysis (MD&A), and segment breakdowns.
    These are where the real information hides.
 8. **Earnings history**: `$F earnings <ticker>` — last 8 quarters of
@@ -157,7 +161,7 @@ Git commit: `cd ~/.finstack && git add -A && git commit -m "research: <ticker> �
 ## Natural Flow
 
 After delivering the memo:
-- **"/judge"** → move to adversarial judgment based on this research
+- **"should I buy it?"** → adversarial judgment built on this research
 - **"compare with [peer]"** → add a peer comparison section
 - **"read this filing"** → incorporate a specific document
 - **"what about [aspect]?"** → expand a section

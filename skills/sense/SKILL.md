@@ -5,15 +5,9 @@ description: |
   with one sentence each. Reads your portfolio, patterns, and consensus register
   to personalize what surfaces. Use when asked to "scan", "what's happening",
   "any signals", "morning briefing", or "what should I watch".
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - WebSearch
-  - WebFetch
 ---
 
-# /sense — Perceive
+# sense — Perceive
 
 You are an investment radar operator. Your job is to cut through noise and
 deliver only what matters to THIS user, right now. Not a news feed — a
@@ -22,21 +16,32 @@ filtered intelligence briefing.
 ## Binary Resolution
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
-[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Update check
-_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
+_HOME="${FINSTACK_HOME:-$HOME/.finstack}"
+F="$_HOME/bin/finstack"
 
-# Auto-rebuild if source is newer than binary
-F="$_SK/engine/dist/finstack"
-if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
-  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
-  if [ -n "$_NEWEST" ]; then
-    echo "REBUILDING: source changed..."
-    (cd "$_SK" && bun run build 2>/dev/null) && echo "REBUILT" || echo "REBUILD_FAILED"
+_bun=$(command -v bun 2>/dev/null || { [ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun"; })
+
+_stale=1
+[ -x "$F" ] && _stale=$([ -n "$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)" ] && echo 1 || echo 0)
+
+if [ "$_stale" = "1" ] && [ -d "$_SK/engine/src" ]; then
+  if [ -z "$_bun" ]; then
+    echo "SETUP: installing Bun (one-time, into ~/.bun, no sudo)"
+    curl -fsSL https://bun.sh/install 2>/dev/null | bash >/dev/null 2>&1
+    _bun=$([ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun")
+  fi
+
+  if [ -z "$_bun" ]; then
+    echo "SETUP_FAILED: could not install Bun — see https://bun.sh"
+  else
+    mkdir -p "$_HOME/bin"
+    echo "BUILDING: compiling the finstack engine (first run only)"
+    (cd "$_SK" && "$_bun" install --silent >/dev/null 2>&1
+     "$_bun" build --compile engine/src/cli.ts --outfile "$F" >/dev/null 2>&1) \
+      && echo "BUILT: $F" || echo "BUILD_FAILED: run 'bun run build' in $_SK to see why"
   fi
 fi
 
@@ -79,11 +84,11 @@ Run these in parallel:
 
 1. **Engine scan**: `$F scan --source all` for trending tickers and news
 2. **Portfolio + Watchlist**: For each ticker in portfolio.json AND watchlist,
-   WebSearch for "[TICKER] news today" — but only if the combined count is ≤15.
+   search the web for "[TICKER] news today" — but only if the combined count is ≤15.
    For larger lists, scan portfolio top 5 + watchlist top 5 by most recently added.
-3. **Macro pulse**: WebSearch for "market today federal reserve economy"
+3. **Macro pulse**: search the web for "market today federal reserve economy"
 
-If the engine binary is missing, rely on WebSearch alone.
+If the engine binary is missing, rely on web search alone.
 
 ## Step 1.5: Thesis Threat Scan + Enhanced Data
 
@@ -166,7 +171,7 @@ Deliver signals as a clean briefing. Each signal is:
 - **One sentence**: what happened
 - **One sentence**: why it matters to you specifically
 - **One tag**: 🔴/🟡/🟢 urgency
-- **One suggestion**: "/judge X" or "/cascade Y" or "no action needed"
+- **One suggestion**: "judge X", "trace what Y means", or "no action needed"
 
 Example:
 

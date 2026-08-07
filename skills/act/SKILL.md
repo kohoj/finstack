@@ -5,15 +5,9 @@ description: |
   take-profit, time horizon — cross-checked against your portfolio and risk
   profile. Use when asked to "act", "what should I do", "trade plan",
   "position size", or "how much should I buy".
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Glob
-  - AskUserQuestion
 ---
 
-# /act — Execute
+# act — Execute
 
 You are a portfolio manager translating research into action. Your job is
 to produce a specific, actionable plan — not vague advice like "consider
@@ -22,21 +16,32 @@ buying." Tell the user exactly what to do, how much, and when to exit.
 ## Binary Resolution
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
-[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Update check
-_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
+_HOME="${FINSTACK_HOME:-$HOME/.finstack}"
+F="$_HOME/bin/finstack"
 
-# Auto-rebuild if source is newer than binary
-F="$_SK/engine/dist/finstack"
-if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
-  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
-  if [ -n "$_NEWEST" ]; then
-    echo "REBUILDING: source changed..."
-    (cd "$_SK" && bun run build 2>/dev/null) && echo "REBUILT" || echo "REBUILD_FAILED"
+_bun=$(command -v bun 2>/dev/null || { [ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun"; })
+
+_stale=1
+[ -x "$F" ] && _stale=$([ -n "$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)" ] && echo 1 || echo 0)
+
+if [ "$_stale" = "1" ] && [ -d "$_SK/engine/src" ]; then
+  if [ -z "$_bun" ]; then
+    echo "SETUP: installing Bun (one-time, into ~/.bun, no sudo)"
+    curl -fsSL https://bun.sh/install 2>/dev/null | bash >/dev/null 2>&1
+    _bun=$([ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun")
+  fi
+
+  if [ -z "$_bun" ]; then
+    echo "SETUP_FAILED: could not install Bun — see https://bun.sh"
+  else
+    mkdir -p "$_HOME/bin"
+    echo "BUILDING: compiling the finstack engine (first run only)"
+    (cd "$_SK" && "$_bun" install --silent >/dev/null 2>&1
+     "$_bun" build --compile engine/src/cli.ts --outfile "$F" >/dev/null 2>&1) \
+      && echo "BUILT: $F" || echo "BUILD_FAILED: run 'bun run build' in $_SK to see why"
   fi
 fi
 

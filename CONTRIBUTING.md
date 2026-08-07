@@ -15,7 +15,7 @@ bun run build
 ```bash
 bun test                    # Unit, command, integration, adversarial (fast, free)
 bun run test:gate           # The full gate: lint + typecheck + test + docs
-bun run test:e2e            # Skill E2E via Claude API (EVALS=1, costs money)
+bun run test:e2e            # Skill E2E via codex exec (EVALS=1, costs API calls)
 ```
 
 `bun run test:gate` is what CI runs and what the pre-commit hook runs. If it
@@ -23,7 +23,7 @@ passes locally, CI will pass.
 
 `test:e2e` is not in CI and not in the gate. Run it by hand when you change a
 SKILL.md — that is the only time it can tell you anything, since a skill is a
-prompt and the suite has to start real Claude Code sessions to exercise one.
+prompt and the suite has to start real Codex sessions to exercise one.
 
 ## Before You Open a PR
 
@@ -89,6 +89,10 @@ engine/src/
 ├── data/                   # Data sources and state stores (13)
 └── report/                 # HTML report templates
 
+.codex-plugin/plugin.json   # Plugin manifest Codex reads
+.agents/plugins/            # Marketplace listing for distribution
+skills/{name}/SKILL.md      # The nine skills
+
 engine/test/
 ├── commands/               # One file per command
 ├── data/                   # One file per data module
@@ -113,15 +117,18 @@ scripts/check-docs.ts       # Documentation freshness checks
 
 ## Adding a New Skill
 
-1. Create `{skill-name}/SKILL.md` with YAML frontmatter
-2. Copy the Binary Resolution preamble verbatim from any existing skill —
-   `check:docs` asserts all nine are identical
+1. Create `skills/{name}/SKILL.md` with YAML frontmatter — `name` and
+   `description` only
+2. Copy the Binary Resolution preamble verbatim from any existing skill.
+   `check:docs` asserts all nine are byte-identical after comments are stripped
 3. Include Learnings Context and Learning Deposit sections
-4. Add the name to the `SKILLS` array in `setup` and to `SKILLS` in
-   `scripts/check-docs.ts`
-5. Declare every tool the skill uses in `allowed-tools` — an undeclared tool is
-   unavailable at runtime, so the step silently does not happen
-6. Run `./setup` to register
+4. Add the name to `SKILLS` in `scripts/check-docs.ts`
+5. Restart Codex to pick it up
+
+The `description` is what decides whether the skill fires. Skills are
+model-invoked — there is no slash command — so it has to name the phrasings a
+user would actually reach for. Compare the existing nine: each ends with a
+`Use when asked to "..."` list of real utterances.
 
 ## Adding a New Data Source
 

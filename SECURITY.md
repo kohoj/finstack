@@ -61,7 +61,7 @@ multi-user mode. The realistic attack surface is:
 | Concurrent writes losing data | File-level mutex around every read-modify-write cycle |
 | Credentials in logs or cache | Sanitized error payloads; cache holds only extracted fields |
 
-Out of scope: a compromised local machine, a malicious Claude Code skill
+Out of scope: a compromised local machine, a malicious Codex plugin
 installed by the user, and the correctness of the market data itself.
 
 ## Not a Security Issue

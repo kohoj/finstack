@@ -8,7 +8,7 @@
 
 One person + AI = a hedge fund's entire research department.
 
-finstack is a skill pack for [Claude Code](https://claude.ai/code) that turns
+finstack is a [Codex](https://developers.openai.com/codex) plugin that turns
 your terminal into an institutional-grade investment research workflow. Not a
 data terminal — a thinking partner that argues, traces chain reactions, screens
 for opportunities, remembers your blind spots, and gets smarter with every
@@ -130,41 +130,42 @@ Machine detects threats. Human decides death.
 
 ## Install
 
-Requires [Bun](https://bun.sh) and [Claude Code](https://claude.ai/code).
-
 ```bash
-git clone https://github.com/kohoj/finstack.git
-cd finstack
-./setup
+codex plugin marketplace add kohoj/finstack
+codex plugin add finstack@finstack
 ```
 
-That's it. Nine skills are now available in Claude Code.
-
-### Team Mode
-
-For shared teams that want auto-updates:
-
-```bash
-./setup --team
-```
-
-This enables background auto-pull + rebuild on each Claude Code session start.
+That's it. The engine compiles itself on first use — installing
+[Bun](https://bun.sh) if you don't have it — and lands in `~/.finstack/bin/`.
 
 ### Quick Start
 
-```bash
-claude                          # Open Claude Code
+There are no commands to memorize. The skills are model-invoked: describe what
+you want and the right one applies.
 
-/sense                          # Morning briefing
-/research NVDA                  # Deep dive on a ticker
-/judge NVDA                     # Adversarial buy/sell verdict
-/act NVDA                       # Concrete action plan
-/cascade TSMC cuts capex        # Trace chain reactions
-/track                          # Portfolio performance mirror
-/reflect                        # Learn from past decisions
-/screen --preset growth         # Find growth stocks
-/review --period week           # Weekly retrospective
 ```
+"Am I too concentrated in any one position?"
+"Should I buy NVDA?"
+"Research NVDA — I want a memo, not a metrics dump."
+"What does a TSMC capex cut mean for my holdings?"
+"How am I doing? Show me the alpha breakdown."
+"Find me high-margin companies under $50B."
+"Review my decisions — what patterns do you see?"
+```
+
+Start with the first one. It works before you have any history, and it usually
+surfaces something the user did not know about their own portfolio.
+
+### Working from a clone
+
+```bash
+git clone https://github.com/kohoj/finstack.git
+cd finstack && ./setup
+```
+
+`./setup` prepares `~/.finstack` and builds the engine ahead of time. The
+plugin install above does the same thing lazily, so this is only for
+contributors or anyone who would rather not wait during their first question.
 
 ### Unlock More Data Sources
 
@@ -220,15 +221,18 @@ finstack scenario <name|custom>             Scenario analysis
 
 ```
 finstack/
-├── sense/SKILL.md           # 9 skill definitions
-├── research/SKILL.md        #   (prompt templates for Claude Code)
-├── judge/SKILL.md
-├── act/SKILL.md
-├── cascade/SKILL.md
-├── track/SKILL.md
-├── reflect/SKILL.md
-├── screen/SKILL.md
-├── review/SKILL.md
+├── .codex-plugin/
+│   └── plugin.json          # Manifest Codex reads
+├── skills/                  # 9 skill definitions (prompt templates)
+│   ├── sense/SKILL.md
+│   ├── research/SKILL.md
+│   ├── judge/SKILL.md
+│   ├── act/SKILL.md
+│   ├── cascade/SKILL.md
+│   ├── track/SKILL.md
+│   ├── reflect/SKILL.md
+│   ├── screen/SKILL.md
+│   └── review/SKILL.md
 ├── engine/src/              # Data engine (compiled Bun binary)
 │   ├── cli.ts               #   24 commands
 │   ├── commands/             #   quote, financials, scan, screen, portfolio,
@@ -246,7 +250,7 @@ finstack/
 ```
 
 **Dual-layer architecture:**
-- **Cognitive Layer** (skills) — Claude Code handles reasoning, adversarial analysis, pattern recognition
+- **Cognitive Layer** (skills) — the model handles reasoning, adversarial analysis, pattern recognition
 - **Data Layer** (engine) — Bun binary handles fetching, caching, computation
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for deep technical details.

@@ -5,17 +5,9 @@ description: |
   attack, and synthesize an investment thesis — then delivers a verdict with
   conditional confidence. Use when asked to "judge", "should I buy/sell",
   "what do you think about [ticker]", or "evaluate [ticker]".
-allowed-tools:
-  - Agent
-  - Bash
-  - Read
-  - Write
-  - Glob
-  - WebSearch
-  - WebFetch
 ---
 
-# /judge — Adversarial Investment Judgment
+# judge — Adversarial Investment Judgment
 
 You are a presiding investment analyst. Your job is to deliver a clear,
 honest verdict on an investment question — not by listing pros and cons,
@@ -25,29 +17,40 @@ result into a judgment the user can act on.
 ## Binary Resolution
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-_SK="${_ROOT:+$_ROOT/.claude/skills/finstack}"
-[ -z "$_SK" ] || [ ! -d "$_SK" ] && _SK=~/.claude/skills/finstack
+_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Update check
-_UPD=$("$_SK/bin/finstack-update-check" 2>/dev/null || true)
-[ -n "$_UPD" ] && echo "$_UPD"
+_HOME="${FINSTACK_HOME:-$HOME/.finstack}"
+F="$_HOME/bin/finstack"
 
-# Auto-rebuild if source is newer than binary
-F="$_SK/engine/dist/finstack"
-if [ -x "$F" ] && [ -d "$_SK/engine/src" ]; then
-  _NEWEST=$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)
-  if [ -n "$_NEWEST" ]; then
-    echo "REBUILDING: source changed..."
-    (cd "$_SK" && bun run build 2>/dev/null) && echo "REBUILT" || echo "REBUILD_FAILED"
+_bun=$(command -v bun 2>/dev/null || { [ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun"; })
+
+_stale=1
+[ -x "$F" ] && _stale=$([ -n "$(find "$_SK/engine/src" "$_SK/package.json" -newer "$F" 2>/dev/null | head -1)" ] && echo 1 || echo 0)
+
+if [ "$_stale" = "1" ] && [ -d "$_SK/engine/src" ]; then
+  if [ -z "$_bun" ]; then
+    echo "SETUP: installing Bun (one-time, into ~/.bun, no sudo)"
+    curl -fsSL https://bun.sh/install 2>/dev/null | bash >/dev/null 2>&1
+    _bun=$([ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun")
+  fi
+
+  if [ -z "$_bun" ]; then
+    echo "SETUP_FAILED: could not install Bun — see https://bun.sh"
+  else
+    mkdir -p "$_HOME/bin"
+    echo "BUILDING: compiling the finstack engine (first run only)"
+    (cd "$_SK" && "$_bun" install --silent >/dev/null 2>&1
+     "$_bun" build --compile engine/src/cli.ts --outfile "$F" >/dev/null 2>&1) \
+      && echo "BUILT: $F" || echo "BUILD_FAILED: run 'bun run build' in $_SK to see why"
   fi
 fi
 
 [ -x "$F" ] && echo "ENGINE: $F" || echo "ENGINE_MISSING"
 ```
 
-If the engine binary is missing, you can still proceed — use WebSearch and
-WebFetch for data gathering instead of `$F` commands.
+If the engine binary is missing, you can still proceed — search the web and
+web fetch for data gathering instead of `$F` commands.
 
 ## Learnings Context
 
@@ -66,8 +69,8 @@ approach based on what was learned before.
 Before deploying any agents, quietly gather everything you need. Do these
 in parallel:
 
-1. **Price data**: Run `$F quote <ticker>` (or WebSearch for current price)
-2. **Financial data**: Run `$F financials <ticker>` (or WebSearch for key metrics)
+1. **Price data**: Run `$F quote <ticker>` (or search the web for current price)
+2. **Financial data**: Run `$F financials <ticker>` (or search the web for key metrics)
 3. **Portfolio context**: Read `~/.finstack/portfolio.json` if it exists — know what the user already holds
 4. **Cognitive history**: Read `~/.finstack/journal/` for any prior judgments on this ticker
 5. **Behavioral patterns**: Read `~/.finstack/patterns/` — know the user's blind spots
@@ -97,14 +100,20 @@ Make a judgment call:
 State your reasoning briefly: "For this question, I'm deploying Bull and Bear
 (core), plus Macro (because Fed policy directly affects this thesis)."
 
-## Step 2: Deploy Agents
+## Step 2: Deploy Analysts
 
-### Bull Agent (Opus, always runs first)
+Each analyst runs as a delegated worker. Use the host's default agent type,
+model, and reasoning effort — the briefs below are self-contained.
+
+**If delegation is unavailable in this environment**, say so plainly and offer
+to run the exchange inline as a single reasoning pass. Do not claim an
+adversarial exchange happened when one analyst wrote both sides — the whole
+point is that Bear did not author the thesis it is attacking.
+
+### Bull (always runs first)
 
 ```
-Spawn an Agent with model: "opus" and this prompt:
-
-"You are a buy-side analyst building the investment case for [TICKER].
+You are a buy-side analyst building the investment case for [TICKER].
 
 Context:
 [Insert quote data, financial data, and any relevant prior research]
@@ -116,19 +125,20 @@ Your job:
 4. Give a price target with your reasoning
 
 Write as a concise investment memo. No bullet-point lists of generic strengths.
-Every claim must be footnoted with its data source."
+Every claim must be footnoted with its data source.
 ```
 
-### Bear Agent (Opus, runs AFTER Bull completes)
+### Bear (runs only after Bull has completed)
 
-This is sequential by design. Bear must see Bull's actual output to attack it.
+Sequential by design, and this ordering is the mechanism — not a preference.
+Bear must receive Bull's actual output as text. Wait for Bull to finish and go
+idle before dispatching Bear; running them together produces two independent
+opinions, which is a different and much weaker thing.
 
 ```
-Spawn an Agent with model: "opus" and this prompt:
+You are a short-seller who has just read the following bull thesis:
 
-"You are a short-seller who has just read the following bull thesis:
-
-[Insert Bull Agent's complete output]
+[Insert Bull's complete output verbatim]
 
 Your job is NOT to list generic bear arguments. Your job is:
 1. Identify the WEAKEST SPECIFIC ASSUMPTION in Bull's thesis
@@ -137,36 +147,32 @@ Your job is NOT to list generic bear arguments. Your job is:
 4. Name the specific scenario where this investment loses 30%+
 
 You must engage with Bull's actual claims. Generic bearishness is worthless.
-Attack the thesis, not the ticker."
+Attack the thesis, not the ticker.
 ```
 
-### Macro Agent (Sonnet, optional, runs in parallel with Bear if needed)
+### Macro (optional, may run alongside Bear)
 
 ```
-Spawn an Agent with model: "sonnet" and this prompt:
-
-"Assess the current macroeconomic environment's impact on [TICKER].
+Assess the current macroeconomic environment's impact on [TICKER].
 Focus only on factors that materially affect this specific investment:
 interest rate sensitivity, currency exposure, policy risk, industry cycle position.
-Be specific — 'rising rates are bad for growth stocks' is too generic.
-How much does a 50bp rate move change THIS company's DCF? Skip if immaterial."
+Be specific — "rising rates are bad for growth stocks" is too generic.
+How much does a 50bp rate move change THIS company's DCF? Skip if immaterial.
 ```
 
-### Technical Agent (Sonnet, optional)
+### Technical (optional)
 
 ```
-Spawn an Agent with model: "sonnet" and this prompt:
-
-"Pure technical analysis of [TICKER]. Key support/resistance levels,
+Pure technical analysis of [TICKER]. Key support/resistance levels,
 volume-price dynamics, trend signals. Flag ONLY if the chart is telling
 a story that contradicts or supports the fundamental thesis.
-If the chart is unremarkable, say so in one sentence and stop."
+If the chart is unremarkable, say so in one sentence and stop.
 ```
 
-### Sentiment Agent (Haiku, optional)
+### Sentiment (optional)
 
 ```
-Use WebSearch to scan recent social/news sentiment for [TICKER].
+Scan recent social and news sentiment for [TICKER].
 Summarize in 2-3 sentences. Flag only if sentiment is at an extreme
 (euphoria or panic) — moderate sentiment is not worth reporting.
 ```
@@ -291,8 +297,8 @@ Confirm briefly: `Thesis registered: "<thesis>" — N conditions tracked`
 After delivering the verdict, the user may say:
 - **"expand"** → show Level 2 (full bull/bear exchange)
 - **"trace"** → show Level 3 (raw data provenance)
-- **"/act"** → generate an action plan based on this verdict
-- **"/cascade [event]"** → trace chain reaction of a related event
+- **"what should I do?"** → an action plan built on this verdict
+- **"what does [event] mean for this?"** → trace the chain reaction
 - **"I disagree because..."** → record the divergence, update journal
 - **"revisit"** → re-run /judge with fresh data
 

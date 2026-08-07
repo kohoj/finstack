@@ -11,16 +11,13 @@
  */
 import { describe, expect, it } from 'bun:test';
 import {
-  extractAllowedTools,
   extractCLICommands,
   extractCommandCountClaims,
   extractHelpCommands,
   extractPreamble,
-  extractSetupSkills,
   extractSkillCountClaims,
   extractSkillEngineRefs,
   extractSkillReferences,
-  extractUsedTools,
   runChecks,
   SKILLS,
 } from '../../scripts/check-docs';
@@ -94,90 +91,6 @@ describe('extractSkillCountClaims', () => {
   });
 });
 
-describe('extractAllowedTools', () => {
-  const skill = `---
-name: test
-description: |
-  Multi-line description that mentions Glob and Agent in prose.
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
----
-
-# Body
-`;
-
-  it('reads the declared list', () => {
-    expect(extractAllowedTools(skill)).toEqual(['Bash', 'Glob', 'Read']);
-  });
-
-  it('does not pick up tool names from the description', () => {
-    // 'Agent' appears in the description but is not declared.
-    expect(extractAllowedTools(skill)).not.toContain('Agent');
-  });
-
-  it('returns an empty list when there is no frontmatter', () => {
-    expect(extractAllowedTools('# Just a heading')).toEqual([]);
-  });
-});
-
-describe('extractUsedTools', () => {
-  function body(text: string) {
-    return `---\nname: t\nallowed-tools:\n  - Bash\n---\n\n${text}`;
-  }
-
-  it('detects an explicit tool name', () => {
-    expect(extractUsedTools(body('Use Glob to find files.'))).toContain('Glob');
-  });
-
-  it('detects a glob-shaped path without the tool name', () => {
-    expect(extractUsedTools(body('Read `~/.finstack/journal/*<ticker>*`'))).toContain('Glob');
-  });
-
-  it('detects a described agent spawn', () => {
-    expect(extractUsedTools(body('Deploy a Bull agent and a Bear agent.'))).toContain('Agent');
-  });
-
-  it('detects an instruction to consult the user', () => {
-    expect(extractUsedTools(body('Ask the user which period to review.'))).toContain(
-      'AskUserQuestion',
-    );
-  });
-
-  it('detects an instruction to consult the web', () => {
-    expect(extractUsedTools(body('Look up the current price of the ticker.'))).toContain(
-      'WebSearch',
-    );
-  });
-
-  // The negation cases are the reason this function is not a plain substring
-  // match: research/SKILL.md says "don't ask the user who the peers are",
-  // which is evidence the skill does NOT need AskUserQuestion.
-  it('ignores a negated instruction', () => {
-    expect(extractUsedTools(body("Auto-select peers — don't ask the user."))).not.toContain(
-      'AskUserQuestion',
-    );
-  });
-
-  it('ignores "never" phrasing', () => {
-    expect(extractUsedTools(body('Never ask the user to confirm.'))).not.toContain(
-      'AskUserQuestion',
-    );
-  });
-
-  it('ignores "rather than" phrasing', () => {
-    expect(extractUsedTools(body('Infer the scope rather than ask the user.'))).not.toContain(
-      'AskUserQuestion',
-    );
-  });
-
-  it('does not read the frontmatter as usage', () => {
-    const skill = `---\nname: t\nallowed-tools:\n  - Agent\n  - Glob\n---\n\nNo tools here.`;
-    expect(extractUsedTools(skill)).toEqual([]);
-  });
-});
-
 describe('extractPreamble', () => {
   it('extracts executable lines only', () => {
     const md = '```bash\n# a comment\nF="$_SK/bin"\n\necho hi\n```';
@@ -227,17 +140,6 @@ describe('extractSkillReferences', () => {
   it('ignores paths that look like skill references', () => {
     const md = '---\nname: sense\n---\n\nWrite to /tmp/output and /usr/local.';
     expect(extractSkillReferences(md, 'sense')).toEqual([]);
-  });
-});
-
-describe('extractSetupSkills', () => {
-  it('reads the SKILLS array', () => {
-    const setup = 'SKILLS=(sense research judge act)\nfor skill in ...';
-    expect(extractSetupSkills(setup)).toEqual(['act', 'judge', 'research', 'sense']);
-  });
-
-  it('returns an empty list when absent', () => {
-    expect(extractSetupSkills('echo hello')).toEqual([]);
   });
 });
 

@@ -7,7 +7,7 @@
  *
  * This is not theoretical. Skills run engine commands in parallel — /sense
  * fetches quotes concurrently while updating theses.json, and a user can run a
- * second Claude Code session at any time.
+ * second Codex session at any time.
  *
  * These tests spawn real subprocesses. In-process concurrency would not
  * reproduce the bug: Bun's event loop makes each synchronous read-modify-write

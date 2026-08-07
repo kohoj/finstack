@@ -18,10 +18,10 @@ This is the skill that makes finstack smarter over time.
 ## Binary Resolution
 
 ```bash
-_SK="${CODEX_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+_SK="${PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}"
 [ -n "$_SK" ] && [ -d "$_SK/engine/src" ] || _SK=$(git rev-parse --show-toplevel 2>/dev/null)
 
-_HOME="${FINSTACK_HOME:-$HOME/.finstack}"
+_HOME="${PLUGIN_DATA:-${FINSTACK_HOME:-$HOME/.finstack}}"
 F="$_HOME/bin/finstack"
 
 _bun=$(command -v bun 2>/dev/null || { [ -x "$HOME/.bun/bin/bun" ] && echo "$HOME/.bun/bin/bun"; })

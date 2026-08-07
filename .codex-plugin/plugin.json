@@ -33,9 +33,13 @@
     "brandColor": "#10A37F",
     "defaultPrompt": [
       "Use finstack to check my portfolio for concentration risk",
-      "Use finstack to judge whether I should buy NVDA",
-      "Use finstack to find high-margin companies under $50B",
-      "Use finstack to trace what a TSMC capex cut means for my holdings"
+      "Use finstack to judge whether I should buy NVDA at current price",
+      "Use finstack to find high-margin tech companies under $50B market cap",
+      "Use finstack to trace what a TSMC capex cut means for my NVDA position",
+      "Use finstack to show me what patterns I repeat in my trading",
+      "Use finstack to scan for signals relevant to my current holdings",
+      "Use finstack to size a new position with proper risk controls",
+      "Use finstack to compare my real trades against my shadow portfolio"
     ]
   }
 }

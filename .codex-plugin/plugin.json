@@ -30,7 +30,7 @@
       "Write"
     ],
     "websiteURL": "https://github.com/kohoj/finstack",
-    "brandColor": "#10A37F",
+    "brandColor": "#0B7A5A",
     "defaultPrompt": [
       "Use finstack to check my portfolio for concentration risk",
       "Use finstack to judge whether I should buy NVDA at current price",
@@ -44,7 +44,15 @@
       "Use finstack to review my last 5 trades and suggest improvements"
     ],
     "privacyPolicyURL": "https://github.com/kohoj/finstack/blob/main/SECURITY.md",
-    "termsOfServiceURL": "https://github.com/kohoj/finstack/blob/main/LICENSE"
+    "termsOfServiceURL": "https://github.com/kohoj/finstack/blob/main/LICENSE",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "screenshots": [
+      "./assets/screenshot-alpha.png",
+      "./assets/screenshot-cascade.png",
+      "./assets/screenshot-judge.png",
+      "./assets/screenshot-portfolio.png"
+    ]
   },
   "mcpServers": "./.mcp.json"
 }

@@ -36,10 +36,15 @@
       "Use finstack to judge whether I should buy NVDA at current price",
       "Use finstack to find high-margin tech companies under $50B market cap",
       "Use finstack to trace what a TSMC capex cut means for my NVDA position",
-      "Use finstack to show me what patterns I repeat in my trading",
+      "Use finstack to show me what patterns I repeat in my trading decisions",
       "Use finstack to scan for signals relevant to my current holdings",
       "Use finstack to size a new position with proper risk controls",
-      "Use finstack to compare my real trades against my shadow portfolio"
-    ]
-  }
+      "Use finstack to compare my real trades against my shadow portfolio",
+      "Use finstack to research the bull and bear cases for Apple",
+      "Use finstack to review my last 5 trades and suggest improvements"
+    ],
+    "privacyPolicyURL": "https://github.com/kohoj/finstack/blob/main/SECURITY.md",
+    "termsOfServiceURL": "https://github.com/kohoj/finstack/blob/main/LICENSE"
+  },
+  "mcpServers": "./.mcp.json"
 }

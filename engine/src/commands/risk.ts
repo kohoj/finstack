@@ -184,16 +184,28 @@ export async function risk(args: string[]) {
     }
 
     const sizing = calculatePositionSize(portfolioValue, profile.riskBudgetPct, entry, stop);
-    const weight =
-      portfolioValue > 0
-        ? (sizing.positionDollars / (portfolioValue + sizing.positionDollars)) * 100
-        : 0;
 
-    // Run risk gate
-    const existingWeights = portfolio.positions.map(p => ({
-      ticker: p.ticker,
-      weight: ((p.shares * p.avgCost) / portfolioValue) * 100,
-    }));
+    // Post-trade weight of the *whole* position in this ticker, not just the
+    // addition. Adding to an existing holding was measured against the new
+    // shares alone, so topping up a position already at 80% reported 13.8% and
+    // the 25% single-position block never fired.
+    const existingValue = portfolio.positions
+      .filter(p => p.ticker === ticker)
+      .reduce((s, p) => s + p.shares * p.avgCost, 0);
+
+    const postTradeValue = portfolioValue + sizing.positionDollars;
+    const weight =
+      postTradeValue > 0 ? ((existingValue + sizing.positionDollars) / postTradeValue) * 100 : 0;
+
+    // Other holdings only. The ticker being sized is passed separately as its
+    // post-trade weight; including its pre-trade weight here would count it
+    // twice in the top-3 sum.
+    const existingWeights = portfolio.positions
+      .filter(p => p.ticker !== ticker)
+      .map(p => ({
+        ticker: p.ticker,
+        weight: ((p.shares * p.avgCost) / postTradeValue) * 100,
+      }));
     const gate = evaluateRiskGate(ticker, weight, existingWeights, profile.riskBudgetPct, 0);
 
     console.log(
@@ -208,7 +220,12 @@ export async function risk(args: string[]) {
             positionDollars: sizing.positionDollars,
             riskDollars: sizing.riskDollars,
             riskBudgetPct: profile.riskBudgetPct,
+            // Weight of the combined position after the trade. When adding to
+            // an existing holding this exceeds the new tranche's own share.
             weightPct: +weight.toFixed(1),
+            ...(existingValue > 0
+              ? { addingToExisting: true, existingValue: +existingValue.toFixed(2) }
+              : {}),
           },
           riskGate: gate,
         },

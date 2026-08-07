@@ -79,3 +79,89 @@ describe('risk', () => {
     expect(gate.warnings[0]).toContain('approaching');
   });
 });
+
+// ── Post-trade weight when adding to an existing position ───────────────────
+//
+// Regression: `risk size` measured the post-trade weight against the new
+// tranche alone, ignoring shares already held. Topping up a position already
+// at 80% of the portfolio reported 13.8%, so the 25% single-position block
+// never fired — the gate silently approved the concentration it exists to stop.
+
+import { afterAll, beforeEach } from 'bun:test';
+import { captureJSON, useTestHome } from '../helpers';
+
+const gateHome = useTestHome('risk-gate');
+
+async function load() {
+  const risk = (await import('../../src/commands/risk')).risk;
+  const portfolio = (await import('../../src/commands/portfolio')).portfolio;
+  return { risk, portfolio };
+}
+
+/** One 80% holding plus four 5% holdings. */
+async function seedConcentrated() {
+  const { portfolio } = await load();
+  await captureJSON(() => portfolio(['init']));
+  await captureJSON(() => portfolio(['add', 'BIG', '100', '800']));
+  for (const t of ['S1', 'S2', 'S3', 'S4']) {
+    await captureJSON(() => portfolio(['add', t, '100', '50']));
+  }
+}
+
+describe('risk size — post-trade weight', () => {
+  beforeEach(() => gateHome.reset());
+  afterAll(() => gateHome.cleanup());
+
+  it('blocks adding to a position already over the single-position limit', async () => {
+    await seedConcentrated();
+    const { risk } = await load();
+
+    const out = await captureJSON(() => risk(['size', 'BIG', '800', '700']));
+
+    // 80% held plus the new tranche, not the tranche alone.
+    expect(out.sizing.weightPct).toBeGreaterThan(80);
+    expect(out.sizing.addingToExisting).toBe(true);
+    expect(out.riskGate.pass).toBe(false);
+    expect(out.riskGate.blocks.join(' ')).toMatch(/limit: 25%/);
+  });
+
+  it('allows a new position of the same size', async () => {
+    await seedConcentrated();
+    const { risk } = await load();
+
+    // Same dollar amount, but nothing held yet, so the weight is the tranche's.
+    const out = await captureJSON(() => risk(['size', 'DDD', '800', '700']));
+
+    expect(out.sizing.weightPct).toBeLessThan(25);
+    expect(out.sizing.addingToExisting).toBeUndefined();
+    expect(out.riskGate.pass).toBe(true);
+  });
+
+  it('allows topping up a small position', async () => {
+    await seedConcentrated();
+    const { risk } = await load();
+
+    const out = await captureJSON(() => risk(['size', 'S1', '50', '45']));
+
+    expect(out.sizing.addingToExisting).toBe(true);
+    expect(out.riskGate.pass).toBe(true);
+  });
+
+  // The ticker being sized is passed to the gate as its post-trade weight, so
+  // including its pre-trade weight in the "existing holdings" list counted it
+  // twice — a single-holding portfolio reported top-3 concentration of 115%.
+  it('does not count the sized ticker twice in the top-3 sum', async () => {
+    const { risk, portfolio } = await load();
+    await captureJSON(() => portfolio(['init']));
+    await captureJSON(() => portfolio(['add', 'ONLY', '50', '195']));
+
+    const out = await captureJSON(() => risk(['size', 'ONLY', '219', '197']));
+
+    // A single holding cannot exceed 100% of the portfolio.
+    const top3 = out.riskGate.warnings.find((w: string) => w.includes('Top 3'));
+    if (top3) {
+      const pct = Number(top3.match(/([\d.]+)%/)?.[1]);
+      expect(pct).toBeLessThanOrEqual(100);
+    }
+  });
+});

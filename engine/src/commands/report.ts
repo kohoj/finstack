@@ -1,6 +1,6 @@
 // engine/src/commands/report.ts
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FinstackError } from '../errors';
@@ -15,7 +15,10 @@ function today(): string {
 
 function openFile(path: string): void {
   const cmd = process.platform === 'darwin' ? 'open' : 'xdg-open';
-  exec(`${cmd} "${path}"`, () => {}); // fire-and-forget
+  // execFile, not exec: the path is passed as an argv entry, never parsed by a
+  // shell. REPORTS_DIR derives from FINSTACK_HOME, so a home path containing
+  // shell metacharacters would otherwise be interpreted rather than opened.
+  execFile(cmd, [path], () => {}); // fire-and-forget
 }
 
 function _parseFlag(args: string[], flag: string): string | undefined {

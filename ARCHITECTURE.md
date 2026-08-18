@@ -184,6 +184,37 @@ description of what is asserted.
 
 **Why compiled?** Startup time matters. `finstack quote AAPL` runs in ~100ms including network. An interpreted runtime would add 200-500ms overhead. When `/sense` scans 10 tickers in parallel, that's 2-5 seconds saved.
 
+### MCP Server
+
+**Command**: `finstack mcp-server`  
+**Source**: `engine/src/mcp/server.ts`  
+**Registration**: `.mcp.json` → `finstack-data` server → `["mcp-server"]`
+
+The plugin declares an MCP (Model Context Protocol) server so a host can call
+the engine directly as tools, without the skills layer. `mcp-server` speaks
+JSON-RPC 2.0 over stdio — newline-delimited messages on stdin/stdout — and
+exposes every one of the 24 commands as a tool. It is dispatched outside the
+command table (it is a transport, not an analytical command) and never appears
+in its own tool list.
+
+**Why a subprocess bridge, not in-process dispatch.** Each `tools/call`
+re-invokes the same finstack binary as a child process, passes the CLI args,
+and captures the child's stdout as the tool result. Two globals force this:
+
+1. Commands print their result to `console.log`. In the server process, stdout
+   **is** the JSON-RPC channel — an in-process command would corrupt the stream.
+2. `thesis add` and `shadow add` read their JSON document from `process.stdin`.
+   In the server process, stdin **is** the JSON-RPC transport.
+
+Re-invoking as a child isolates both globals and runs the exact CLI code path,
+so a tool can never diverge from the command a human would run. The two
+composing commands expose a `document` object input that the bridge pipes to
+the child's stdin; every other tool takes only an `args` string array.
+
+A command failure (exit 1) is returned as a tool result with `isError: true`
+carrying the structured `FinstackError` JSON — the server loop stays alive.
+`serverInfo.version` is pinned to `VERSION` and asserted by `check:docs`.
+
 ### Skills
 
 **Location**: `{sense,research,judge,act,cascade,track,reflect,screen,review}/SKILL.md`  
@@ -249,8 +280,8 @@ Every state file is JSON (human-readable, `git diff`-able, auditable). The direc
 ├── consensus.json        # Market assumptions + stress tracking
 ├── watchlist.json        # Tickers being monitored
 ├── keys.json             # API keys (0o600 permissions)
-├── profile.json          # Risk tolerance, style, blind spots
-├── config.yaml           # System config (auto_upgrade, update_check)
+├── profile.json          # Risk profile — risk budget % (set via `risk profile`)
+├── equity.json           # Mark-to-market equity curve + drawdown high-water mark
 ├── cache/                # TTL-based API response cache
 ├── journal/              # Decision logs (sense-2026-04-07.md, etc.)
 ├── patterns/             # Behavioral patterns (exits-tech-early.md)

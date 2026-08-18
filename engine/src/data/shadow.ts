@@ -119,4 +119,18 @@ export function closeEntry(
   });
 }
 
+/**
+ * Share-weighted average fill price across all filled tranches, or null if none
+ * filled. A staged plan fills in multiple tranches at different prices, so the
+ * shadow entry price is the weighted mean — using only the first tranche would
+ * misstate the cost basis for any multi-tranche entry.
+ */
+export function weightedFillPrice(entry: ShadowEntry): number | null {
+  const filled = entry.stagedPlan.filter(t => t.status === 'filled' && t.fillPrice !== null);
+  const shares = filled.reduce((s, t) => s + t.shares, 0);
+  if (shares === 0) return null;
+  const cost = filled.reduce((s, t) => s + (t.fillPrice as number) * t.shares, 0);
+  return +(cost / shares).toFixed(2);
+}
+
 export type { Shadow, ShadowEntry, StagedTranche };

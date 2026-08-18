@@ -94,6 +94,39 @@ export async function fetchChart(ticker: string, range = '1mo', interval = '1d')
   );
 }
 
+/**
+ * Daily closing price on or just before an ISO date (yyyy-mm-dd).
+ *
+ * Backtesting needs the close at entry/exit, not today's quote. Yahoo's chart
+ * endpoint takes an explicit period1/period2 window; we request a two-week band
+ * ending on the target date and take the last bar at or before it, so weekends
+ * and market holidays resolve to the prior trading day. Returns null when the
+ * window holds no bar (ticker not yet trading, or a future date).
+ */
+export async function fetchHistoricalClose(
+  ticker: string,
+  isoDate: string,
+): Promise<number | null> {
+  const target = Math.floor(new Date(`${isoDate}T00:00:00Z`).getTime() / 1000);
+  if (!Number.isFinite(target)) return null;
+  const period2 = target + 86400; // inclusive of the target day
+  const period1 = target - 14 * 86400; // two-week lookback covers holiday gaps
+  const raw = await yf(
+    `/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${period1}&period2=${period2}&interval=1d&includePrePost=false`,
+  );
+  const result = raw?.chart?.result?.[0];
+  const timestamps: number[] = result?.timestamp || [];
+  const closes: (number | null)[] = result?.indicators?.quote?.[0]?.close || [];
+  if (timestamps.length === 0) return null;
+  // Walk back from the newest bar within the window to the first real close.
+  for (let i = timestamps.length - 1; i >= 0; i--) {
+    if (timestamps[i] <= period2 && typeof closes[i] === 'number') {
+      return +closes[i]!.toFixed(2);
+    }
+  }
+  return null;
+}
+
 export async function fetchQuoteSummary(ticker: string, modules: string[]) {
   return yf(
     `/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules.join(',')}`,

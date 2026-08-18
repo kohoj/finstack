@@ -177,12 +177,16 @@ export function killThesis(id: string, reason: string, file = paths.THESES_FILE)
     if (!thesis) return;
 
     const from = thesis.status;
+    const now = new Date();
     thesis.status = 'dead';
-    thesis.statusHistory.push({ date: new Date().toISOString(), from, to: 'dead', reason });
-    const created = new Date(thesis.createdAt);
-    created.setDate(created.getDate() + 90);
-    thesis.obituaryDueDate = created.toISOString().split('T')[0];
-    thesis.lastChecked = new Date().toISOString();
+    thesis.statusHistory.push({ date: now.toISOString(), from, to: 'dead', reason });
+    // The obituary is a post-mortem review scheduled 90 days after death, not
+    // after creation: an old thesis killed today should be reviewed a quarter
+    // from now, not land in the queue already overdue.
+    const obituary = new Date(now);
+    obituary.setDate(obituary.getDate() + 90);
+    thesis.obituaryDueDate = obituary.toISOString().split('T')[0];
+    thesis.lastChecked = now.toISOString();
   });
 }
 

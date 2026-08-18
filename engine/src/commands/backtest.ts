@@ -1,5 +1,7 @@
 import type { Shadow, ShadowEntry } from '../data/shadow';
+import { weightedFillPrice } from '../data/shadow';
 import type { ThesesStore, Thesis } from '../data/thesis';
+import { fetchHistoricalClose } from '../data/yahoo';
 import { FinstackError } from '../errors';
 import { readJSONSafe } from '../fs';
 import { paths } from '../paths';
@@ -32,17 +34,20 @@ function daysBetween(a: string, b: string): number {
   return Math.ceil((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
 
-async function fetchClosingPrice(ticker: string, _date: string): Promise<number | null> {
-  try {
-    const { fetchChart } = await import('../data/yahoo');
-    const raw = await fetchChart(ticker, '5d', '1d');
-    const result = raw?.chart?.result?.[0];
-    if (!result) return null;
-    const meta = result.meta;
-    return meta.regularMarketPrice || null;
-  } catch {
-    return null;
-  }
+const isoDay = (iso: string): string => iso.split('T')[0];
+
+/**
+ * SPY total return (percent) between two dates, using historical closes. Returns
+ * null when either endpoint is unavailable, so alpha is reported only when the
+ * benchmark is real rather than silently assumed to be zero.
+ */
+async function spyReturnPct(startIso: string, endIso: string): Promise<number | null> {
+  const [start, end] = await Promise.all([
+    fetchHistoricalClose('SPY', isoDay(startIso)),
+    fetchHistoricalClose('SPY', isoDay(endIso)),
+  ]);
+  if (start === null || end === null || start === 0) return null;
+  return +(((end - start) / start) * 100).toFixed(2);
 }
 
 export function buildBacktestResult(
@@ -56,7 +61,7 @@ export function buildBacktestResult(
       ? thesis.statusHistory.find(h => h.to === 'dead')?.date || new Date().toISOString()
       : new Date().toISOString();
 
-  const entryPrice = shadow?.stagedPlan?.[0]?.fillPrice || null;
+  const entryPrice = shadow ? weightedFillPrice(shadow) : null;
   const exitPrice = shadow?.exitPrice || currentPrice;
 
   let returnPct: number | null = null;
@@ -146,13 +151,22 @@ export async function backtest(args: string[]) {
     // Find matching shadow entry
     const shadowEntry = shadow.entries.find(e => e.linkedThesis === thesis.id) || null;
 
-    // Get current price for open theses
+    const deathDate =
+      thesis.status === 'dead'
+        ? thesis.statusHistory.find(h => h.to === 'dead')?.date || new Date().toISOString()
+        : new Date().toISOString();
+
+    // Current price for open theses is the historical close on the death/now
+    // date; dead theses use the recorded exit.
     const currentPrice =
       thesis.status !== 'dead'
-        ? await fetchClosingPrice(thesis.ticker, new Date().toISOString().split('T')[0])
+        ? await fetchHistoricalClose(thesis.ticker, isoDay(deathDate))
         : shadowEntry?.exitPrice || null;
 
-    const result = buildBacktestResult(thesis, shadowEntry, currentPrice, null);
+    // Benchmark over the same holding window, so alpha is like-for-like.
+    const spyReturn = await spyReturnPct(thesis.createdAt, deathDate);
+
+    const result = buildBacktestResult(thesis, shadowEntry, currentPrice, spyReturn);
     results.push(result);
   }
 

@@ -25,6 +25,8 @@ import { join } from 'node:path';
 
 const ROOT = join(import.meta.dir, '..');
 const CLI_FILE = join(ROOT, 'engine', 'src', 'cli.ts');
+const PATHS_FILE = join(ROOT, 'engine', 'src', 'paths.ts');
+const MCP_SERVER_FILE = join(ROOT, 'engine', 'src', 'mcp', 'server.ts');
 const SKILLS_DIR = join(ROOT, 'skills');
 const PLUGIN_MANIFEST = join(ROOT, '.codex-plugin', 'plugin.json');
 
@@ -125,6 +127,41 @@ export function extractSkillReferences(content: string, self: string): string[] 
     }
   }
   return [...refs].sort();
+}
+
+/**
+ * State filenames (`*.json` / `*.jsonl` / `*.yaml`) named inside a doc's
+ * `~/.finstack/` layout block. Caught `config.yaml`, a file no code ever read.
+ *
+ * Scoped to the fenced block that opens with `~/.finstack/` so a filename
+ * mentioned in ordinary prose is not mistaken for a claimed state file.
+ */
+export function extractDocumentedStateFiles(doc: string): string[] {
+  const files = new Set<string>();
+  for (const block of doc.matchAll(/```[a-z]*\n([\s\S]*?)```/g)) {
+    if (!block[1].includes('~/.finstack/')) continue;
+    for (const m of block[1].matchAll(/([\w.-]+\.(?:jsonl?|yaml|yml))/g)) {
+      files.add(m[1]);
+    }
+  }
+  return [...files].sort();
+}
+
+/** State filenames the engine actually reads or writes, drawn from source. */
+export function extractRealStateFiles(...sources: string[]): string[] {
+  const files = new Set<string>();
+  for (const src of sources) {
+    for (const m of src.matchAll(/join\([^,]+,\s*['"]([\w.-]+\.(?:jsonl?|yaml|yml))['"]\)/g)) {
+      files.add(m[1]);
+    }
+  }
+  return [...files].sort();
+}
+
+/** The `SERVER_VERSION` string the MCP server reports to the plugin host. */
+export function extractMcpServerVersion(src: string): string | null {
+  const m = src.match(/SERVER_VERSION\s*=\s*['"]([^'"]+)['"]/);
+  return m ? m[1] : null;
 }
 
 // ── Checks ──────────────────────────────────────────────────────────────────
@@ -322,6 +359,54 @@ export function runChecks(): CheckResult[] {
         details: missing.length > 0 ? missing.join('; ') : undefined,
       });
     }
+  }
+
+  // 8. Every state file the docs draw in the ~/.finstack/ tree is a file the
+  //    engine actually touches. Caught config.yaml — documented for two
+  //    releases, read by nothing — and would catch a newly-added state file
+  //    (equity.json) that the layout diagrams forgot to mention going the other
+  //    way is left to reviewers; a phantom file is the misleading direction.
+  {
+    const pathsSrc = existsSync(PATHS_FILE) ? readFileSync(PATHS_FILE, 'utf-8') : '';
+    const learningsSrc = existsSync(join(ROOT, 'engine', 'src', 'data', 'learnings.ts'))
+      ? readFileSync(join(ROOT, 'engine', 'src', 'data', 'learnings.ts'), 'utf-8')
+      : '';
+    const sessionSrc = existsSync(join(ROOT, 'engine', 'src', 'session.ts'))
+      ? readFileSync(join(ROOT, 'engine', 'src', 'session.ts'), 'utf-8')
+      : '';
+    const real = extractRealStateFiles(pathsSrc, learningsSrc, sessionSrc);
+
+    for (const doc of ['ARCHITECTURE.md', 'README.md']) {
+      const content = readDoc(doc);
+      if (!content) continue;
+      const phantom = extractDocumentedStateFiles(content).filter(f => !real.includes(f));
+      results.push({
+        check: `${doc} state files exist in code`,
+        pass: phantom.length === 0,
+        details:
+          phantom.length > 0
+            ? `Documented but never read/written: ${phantom.join(', ')}`
+            : undefined,
+      });
+    }
+  }
+
+  // 9. The MCP server reports the repository version to the plugin host.
+  //    serverInfo.version is baked into the compiled binary as a literal (the
+  //    engine has no runtime access to package.json), so it can silently lag a
+  //    release. A client keying behavior off the version would then be misled.
+  {
+    const src = existsSync(MCP_SERVER_FILE) ? readFileSync(MCP_SERVER_FILE, 'utf-8') : '';
+    const declared = extractMcpServerVersion(src);
+    const version = readVersion();
+    results.push({
+      check: 'MCP server version matches VERSION',
+      pass: declared === version,
+      details:
+        declared !== version
+          ? `mcp/server.ts SERVER_VERSION is ${declared ?? '(absent)'}, VERSION says ${version}`
+          : undefined,
+    });
   }
 
   return results;

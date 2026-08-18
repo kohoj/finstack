@@ -217,12 +217,18 @@ finstack correlate [--period N]             Correlation matrix
 finstack scenario <name|custom>             Scenario analysis
 ```
 
+Every command above is also exposed as an [MCP](https://modelcontextprotocol.io)
+tool. `.mcp.json` registers `finstack mcp-server`, a zero-dependency stdio
+JSON-RPC server, so a host can call the engine directly as tools. See
+[ARCHITECTURE.md](ARCHITECTURE.md#mcp-server).
+
 ## Architecture
 
 ```
 finstack/
 ├── .codex-plugin/
 │   └── plugin.json          # Manifest Codex reads
+├── .mcp.json                # MCP server registration (finstack mcp-server)
 ├── skills/                  # 9 skill definitions (prompt templates)
 │   ├── sense/SKILL.md
 │   ├── research/SKILL.md
@@ -235,6 +241,7 @@ finstack/
 │   └── review/SKILL.md
 ├── engine/src/              # Data engine (compiled Bun binary)
 │   ├── cli.ts               #   24 commands
+│   ├── mcp/                  #   MCP stdio JSON-RPC server (server.ts)
 │   ├── commands/             #   quote, financials, scan, screen, portfolio,
 │   │                         #   watchlist, alerts, calendar, regime, thesis,
 │   │                         #   risk, alpha, history, earnings, macro, filing,
@@ -261,7 +268,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for deep technical details.
 - **Fallback chains**: Yahoo → Polygon/FMP → stale cache → actionable error
 - **Atomic writes**: All state files crash-safe via tmp+rename
 - **Version check**: Binary auto-rebuilds when source is newer
-- **167 tests**: Unit, integration, and security regression tests
+- **Test coverage**: Unit, integration, and security regression tests
 
 ## Cognitive Memory
 
@@ -277,7 +284,7 @@ finstack maintains a cognitive model of YOU in `~/.finstack/`:
 ├── consensus.json    # Market assumptions + stress levels
 ├── watchlist.json    # Tickers you're watching
 ├── learnings.jsonl   # Operational learnings (skills get smarter over time)
-├── config.yaml       # User preferences
+├── equity.json       # Mark-to-market equity curve + drawdown breaker
 ├── reports/          # Generated HTML visual reports
 └── cache/            # TTL-based data cache (auto-managed)
 ```
@@ -315,7 +322,7 @@ usefully — the architecture constraints that look like omissions and are not.
 
 ```bash
 bun install
-bun run test:gate    # lint + typecheck + 552 tests + doc checks
+bun run test:gate    # lint + typecheck + tests + doc checks
 ```
 
 - [ROADMAP.md](ROADMAP.md) — what is planned, and what is deliberately not

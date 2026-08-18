@@ -89,6 +89,16 @@ describe('thesis data', () => {
     const updated = loadTheses(TEST_FILE);
     expect(updated.theses[0].status).toBe('dead');
     expect(updated.theses[0].obituaryDueDate).toBeDefined();
+
+    // Obituary is scheduled 90 days after death, not after creation. Death is
+    // "now", so the due date is today + 90 (compared as a date, tolerating the
+    // rare midnight boundary between the two Date reads).
+    const death = new Date(
+      updated.theses[0].statusHistory.find((h: { to: string }) => h.to === 'dead').date,
+    );
+    const expected = new Date(death);
+    expected.setDate(expected.getDate() + 90);
+    expect(updated.theses[0].obituaryDueDate).toBe(expected.toISOString().split('T')[0]);
   });
 
   it('adds a threat to event condition', () => {

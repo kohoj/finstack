@@ -4,9 +4,11 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getKey, listKeys, setKey } from '../src/data/keys';
+import { parseCustomUniverse } from '../src/data/universe';
 import { addToWatchlist } from '../src/data/watchlist';
 import { FinstackError, formatErrorJSON } from '../src/errors';
 import { atomicWriteJSON, readJSONSafe } from '../src/fs';
+import { redactUrl } from '../src/net';
 
 const TEST_DIR = join(tmpdir(), `finstack-security-test-${Date.now()}`);
 
@@ -53,6 +55,28 @@ describe('API key security', () => {
   });
 });
 
+describe('URL redaction in error messages', () => {
+  it('redacts api_key / apikey / token query params', () => {
+    expect(
+      redactUrl('https://api.stlouisfed.org/fred/series?series_id=GDP&api_key=SECRET123'),
+    ).toBe('https://api.stlouisfed.org/fred/series?series_id=GDP&api_key=REDACTED');
+    expect(redactUrl('https://www.alphavantage.co/query?function=EARNINGS&apikey=KEY999')).toBe(
+      'https://www.alphavantage.co/query?function=EARNINGS&apikey=REDACTED',
+    );
+    expect(redactUrl('https://api.polygon.io/v2/aggs?apiKey=abc&sort=asc')).not.toContain('abc');
+    expect(redactUrl('https://x.test/y?token=zzz')).not.toContain('zzz');
+  });
+
+  it('preserves non-secret query params', () => {
+    const out = redactUrl('https://api.stlouisfed.org/fred/series?series_id=GDP&api_key=SECRET');
+    expect(out).toContain('series_id=GDP');
+  });
+
+  it('falls back to bare path on unparseable input', () => {
+    expect(redactUrl('not a url?api_key=SECRET')).not.toContain('SECRET');
+  });
+});
+
 describe('path traversal prevention', () => {
   beforeEach(() => mkdirSync(TEST_DIR, { recursive: true }));
   afterEach(() => rmSync(TEST_DIR, { recursive: true, force: true }));
@@ -80,6 +104,18 @@ describe('path traversal prevention', () => {
     addToWatchlist('NVDA', 'ok', file);
     addToWatchlist('BRK.B', 'ok with dot', file);
     addToWatchlist('BF-B', 'ok with dash', file); // Some tickers have dashes
+  });
+
+  it('parseCustomUniverse rejects traversal entries', () => {
+    // universe entries become cache filenames (join(CACHE_DIR, `${key}.json`)),
+    // so an unvalidated 'X/../../../SECRET' would read an arbitrary JSON file.
+    expect(() => parseCustomUniverse('X/../../../SECRET')).toThrow();
+    expect(() => parseCustomUniverse('AAPL,../../etc/passwd')).toThrow();
+    expect(() => parseCustomUniverse('..')).toThrow();
+  });
+
+  it('parseCustomUniverse accepts and uppercases valid tickers', () => {
+    expect(parseCustomUniverse('aapl, msft ,BRK.B')).toEqual(['AAPL', 'MSFT', 'BRK.B']);
   });
 });
 

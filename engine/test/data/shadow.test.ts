@@ -123,3 +123,41 @@ describe('shadow', () => {
     expect(entry).toBeNull();
   });
 });
+
+describe('weightedFillPrice', () => {
+  const entry = (
+    plan: Array<Partial<{ shares: number; status: string; fillPrice: number | null }>>,
+  ) =>
+    ({ stagedPlan: plan.map((p, i) => ({ tranche: i + 1, trigger: 'immediate', ...p })) }) as any;
+
+  it('share-weights across multiple filled tranches', () => {
+    const { weightedFillPrice } = require('../../src/data/shadow');
+    // 100@800 + 50@900 = (80000+45000)/150 = 833.33, not the first tranche's 800.
+    const price = weightedFillPrice(
+      entry([
+        { shares: 100, status: 'filled', fillPrice: 800 },
+        { shares: 50, status: 'filled', fillPrice: 900 },
+      ]),
+    );
+    expect(price).toBe(833.33);
+  });
+
+  it('ignores unfilled and null-price tranches', () => {
+    const { weightedFillPrice } = require('../../src/data/shadow');
+    const price = weightedFillPrice(
+      entry([
+        { shares: 100, status: 'filled', fillPrice: 800 },
+        { shares: 50, status: 'pending', fillPrice: null },
+        { shares: 25, status: 'filled', fillPrice: null },
+      ]),
+    );
+    expect(price).toBe(800);
+  });
+
+  it('returns null when nothing is filled', () => {
+    const { weightedFillPrice } = require('../../src/data/shadow');
+    expect(
+      weightedFillPrice(entry([{ shares: 100, status: 'pending', fillPrice: null }])),
+    ).toBeNull();
+  });
+});

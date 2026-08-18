@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { loadShadow, type ShadowEntry } from '../data/shadow';
+import { loadShadow, type ShadowEntry, weightedFillPrice } from '../data/shadow';
+import { fetchHistoricalClose } from '../data/yahoo';
 import { paths } from '../paths';
 import { validatePositiveInt } from '../validation';
 
@@ -99,6 +100,20 @@ function loadPortfolio(): Portfolio {
   }
 }
 
+/**
+ * SPY total return as a fraction (0.085 = +8.5%) between two dates. Null when
+ * either historical close is unavailable, so the benchmark is reported only when
+ * real. calculateAggregate expects a fraction, not a percent.
+ */
+async function spyFractionalReturn(fromIso: string, toIso: string): Promise<number | null> {
+  const [start, end] = await Promise.all([
+    fetchHistoricalClose('SPY', fromIso.split('T')[0]),
+    fetchHistoricalClose('SPY', toIso.split('T')[0]),
+  ]);
+  if (start === null || end === null || start === 0) return null;
+  return (end - start) / start;
+}
+
 export async function alpha(args: string[]) {
   const lastN = args.includes('--last')
     ? validatePositiveInt(args[args.indexOf('--last') + 1], 'last')
@@ -128,6 +143,7 @@ export async function alpha(args: string[]) {
   }
 
   const positionAlphas: PositionAlpha[] = [];
+  let deployedCapital = 0; // real cost basis, for the SPY benchmark comparison
 
   for (const { tx, index } of sells) {
     // Pair by log order, not timestamp. Timestamps are millisecond-resolution
@@ -140,6 +156,8 @@ export async function alpha(args: string[]) {
       .reverse()
       .find((t: Transaction) => t.action === 'buy' && t.ticker === tx.ticker);
     if (!buyTx) continue;
+
+    deployedCapital += buyTx.price * tx.shares;
 
     // Find shadow entry — closed or still open
     const shadowEntry = shadow.entries.find((e: ShadowEntry) => e.ticker === tx.ticker);
@@ -156,12 +174,7 @@ export async function alpha(args: string[]) {
       continue;
     }
 
-    const filledTranches = shadowEntry.stagedPlan.filter(t => t.status === 'filled');
-    const shadowBuyPrice =
-      filledTranches.length > 0
-        ? filledTranches.reduce((s, t) => s + (t.fillPrice || 0) * t.shares, 0) /
-          filledTranches.reduce((s, t) => s + t.shares, 0)
-        : buyTx.price;
+    const shadowBuyPrice = weightedFillPrice(shadowEntry) ?? buyTx.price;
 
     // If shadow is still open, use the real sell price as estimated shadow exit
     const shadowSellPrice =
@@ -184,6 +197,18 @@ export async function alpha(args: string[]) {
 
   const totalRealPL = positionAlphas.reduce((s, p) => s + p.realPL, 0);
   const totalShadowPL = positionAlphas.reduce((s, p) => s + p.shadowPL, 0);
+
+  // Benchmark: what the same deployed capital would have returned in SPY over
+  // the reporting window. calculateAggregate splits net alpha into the analytical
+  // edge (shadow vs SPY) and execution drag (real vs shadow). Reported only when
+  // the benchmark is real — a missing SPY close must not read as flat.
+  const from = sells[0]?.tx.date;
+  const to = sells[sells.length - 1]?.tx.date;
+  const spyReturn = from && to ? await spyFractionalReturn(from, to) : null;
+  const aggregate =
+    spyReturn !== null && deployedCapital > 0
+      ? calculateAggregate(positionAlphas, spyReturn, deployedCapital)
+      : null;
 
   const costsByPattern: Record<
     string,
@@ -226,6 +251,7 @@ export async function alpha(args: string[]) {
       followed: positionAlphas.filter(p => Math.abs(p.behavioralCost) < 50).length,
       total: positionAlphas.length,
     },
+    benchmark: aggregate,
     positions: positionAlphas,
   };
 

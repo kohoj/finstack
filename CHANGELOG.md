@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+**API keys leaked into error messages.** Provider URLs carry the key inline
+(`?api_key=…`, `?token=…`), and timeout/HTTP-failure errors echoed the full URL
+through command-layer `e.message` passthrough into logs and terminal output.
+Secret-bearing query parameters are now redacted at the single choke point where
+every provider URL becomes error text (`net.ts § redactUrl`).
+
+**Shell injection in report open.** `report` opened the generated HTML with
+`exec("open \"${path}\"")`; `REPORTS_DIR` derives from `FINSTACK_HOME`, so a home
+path containing shell metacharacters was interpreted rather than opened. Now uses
+`execFile` with the path as an argv entry — no shell parses it.
+
+### Added
+
+**MCP server.** The plugin registered an MCP server (`finstack mcp-server`) in
+`.mcp.json`, but the command did not exist — invoking it errored `Unknown
+command`. It is now implemented: a zero-dependency stdio JSON-RPC 2.0 server
+that exposes every one of the 24 commands as a tool. Each `tools/call`
+re-invokes the same binary as a child process so a tool runs the exact CLI code
+path a human would, with the two stdin-composing commands (`thesis add`,
+`shadow add`) accepting their JSON document as a `document` tool input rather
+than on the transport stdin. See ARCHITECTURE.md § MCP Server.
+
+**Mark-to-market equity curve and drawdown breaker.** `risk snapshot <value>`
+records a dated equity point to `equity.json`, ratcheting a high-water mark
+independent of the snapshots. `computeDrawdown` reports the peak-to-current
+decline the risk gate reads.
+
+**Custom share count in the risk gate.** `risk size <ticker> <entry> <stop>
+[--shares N]` sizes against an explicit share count instead of only the
+risk-budget-derived quantity.
+
+**Configurable risk budget.** `profile.json` had a reader but no writer, so
+`riskBudgetPct` was pinned to its default of 2 forever — a stable-looking config
+that was really a hard-coded constant driving position sizing, the drawdown
+breaker threshold, and `maxLossPerTrade`. `risk profile [--risk-budget N]` now
+views and sets it (validated to (0, 100], written under a lock), and a new
+`data/profile.ts` module owns both ends of the file.
+
+### Fixed
+
+**Backtest and alpha used placeholder prices.** `backtest` computed returns
+against a stubbed closing price and `alpha`'s benchmark aggregate was never
+wired in. Both now fetch real historical closes from Yahoo's chart endpoint
+(`period1`/`period2` window, walking back over weekends and holidays), and
+`alpha` reports a SPY-relative benchmark from `calculateAggregate` over the
+deployed capital.
+
+**Thesis obituary was scheduled from creation, not death.** `killThesis` set the
+90-day post-mortem review date relative to `createdAt`, so an old thesis killed
+today landed in the queue already overdue. It is now 90 days from the kill.
+
+**`loadEquity` corrupted its fallback across calls.** `readJSONSafe` returns its
+fallback by reference and `recordEquity` mutates the loaded history in place, so
+a shared empty constant accumulated snapshots across calls within a process.
+Each load now starts from a fresh object.
+
+**Duplicate `PEAK` in the ticker universe.** The symbol appeared twice; the
+misplaced copy (out of sort order) is removed.
+
+### Changed
+
+**Docs freshness guard extended.** `check:docs` now fails when a state file drawn
+in a `~/.finstack/` layout block is read by no code (caught `config.yaml`), and
+when the MCP server's reported version diverges from `VERSION`.
+
 ## [0.7.0] — 2026-08-07
 
 The correctness release. It closes the gap between what finstack claimed to do

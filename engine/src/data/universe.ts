@@ -1,5 +1,7 @@
 // engine/src/data/universe.ts
 
+import { validateTicker } from '../validation';
+
 // S&P 500 constituents (as of 2026-04, sorted alphabetically)
 // This is a static list. Update periodically by pulling from a data source.
 export const SP500: string[] = [
@@ -212,7 +214,6 @@ export const SP500: string[] = [
   'HBAN',
   'HCA',
   'HD',
-  'PEAK',
   'HES',
   'HIG',
   'HII',
@@ -620,8 +621,15 @@ export function getUniverse(name?: string): string[] {
 }
 
 export function parseCustomUniverse(input: string): string[] {
+  // Every entry is validated, not just trimmed. These strings become cache
+  // filenames (cache.ts: join(CACHE_DIR, `${key}.json`)), so an unchecked
+  // entry like 'X/../../../SECRET' escapes the cache directory and reads an
+  // arbitrary JSON file. validateTicker enforces the [A-Z0-9.-] class and
+  // rejects dot/hyphen-only strings, closing that traversal. It also
+  // uppercases, so the prior .toUpperCase() is now redundant.
   return input
     .split(',')
-    .map(t => t.trim().toUpperCase())
-    .filter(Boolean);
+    .map(t => t.trim())
+    .filter(Boolean)
+    .map(t => validateTicker(t, 'universe ticker'));
 }

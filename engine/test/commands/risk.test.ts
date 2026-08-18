@@ -165,3 +165,52 @@ describe('risk size — post-trade weight', () => {
     }
   });
 });
+
+// ── --shares makes the stop-loss risk block reachable ───────────────────────
+//
+// Regression: `risk size` back-solved shares from the risk budget, so the stop
+// risk was always ≈ the budget and the positionRisk block (>5%) was
+// tautological — it could never fire. With an explicit --shares count the stop
+// risk reflects the user's actual size, so the block engages.
+
+const sharesHome = useTestHome('risk-shares');
+
+describe('risk size — user-specified shares', () => {
+  beforeEach(() => sharesHome.reset());
+  afterAll(() => sharesHome.cleanup());
+
+  async function seed() {
+    const { portfolio } = await load();
+    await captureJSON(() => portfolio(['init']));
+    await captureJSON(() => portfolio(['add', 'AAPL', '100', '200'])); // pv = 20,000
+  }
+
+  it('budget mode leaves stop risk at ≈ the budget and does not block on risk', async () => {
+    await seed();
+    const { risk } = await load();
+    const out = await captureJSON(() => risk(['size', 'TSLA', '100', '90']));
+    expect(out.sizing.sizingMode).toBe('risk-budget');
+    expect(out.riskGate.blocks.join(' ')).not.toMatch(/Position risk at stop-loss/);
+  });
+
+  it('user-shares mode fires the positionRisk block when the stop risk exceeds 5%', async () => {
+    await seed();
+    const { risk } = await load();
+    // 500 shares, entry 100 / stop 90 → 5,000 stop risk on a 25,000 post-trade
+    // portfolio = 20% > 5%. The block that budget-sizing could never trigger.
+    const out = await captureJSON(() => risk(['size', 'TSLA', '100', '90', '--shares', '500']));
+    expect(out.sizing.sizingMode).toBe('user-shares');
+    expect(out.sizing.shares).toBe(500);
+    expect(out.riskGate.pass).toBe(false);
+    expect(out.riskGate.blocks.join(' ')).toMatch(/Position risk at stop-loss/);
+  });
+
+  it('user-shares mode passes risk check for a modest size', async () => {
+    await seed();
+    const { risk } = await load();
+    // 50 shares × 10 stop = 500 risk on ~25k = 2% < 5%, and weight stays under 25%.
+    const out = await captureJSON(() => risk(['size', 'TSLA', '100', '90', '--shares', '50']));
+    expect(out.sizing.sizingMode).toBe('user-shares');
+    expect(out.riskGate.blocks.join(' ')).not.toMatch(/Position risk at stop-loss/);
+  });
+});

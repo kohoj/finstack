@@ -27,6 +27,7 @@ import { shadow } from './commands/shadow';
 import { thesis } from './commands/thesis';
 import { watchlist } from './commands/watchlist';
 import { FinstackError, formatErrorJSON } from './errors';
+import { runMcpServer } from './mcp/server';
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   quote,
@@ -98,7 +99,9 @@ Commands:
   alpha [--last N]                       Cognitive alpha calculation
   thesis add|list|check|threaten|kill    Thesis lifecycle (add reads JSON on stdin)
   shadow add|close|show                  Shadow portfolio (add reads JSON on stdin)
-  risk [size <ticker> <entry> <stop>]    Portfolio risk + position sizing
+  risk [size <ticker> <entry> <stop> [--shares N]]  Portfolio risk + position sizing
+  risk snapshot <value>                  Record mark-to-market equity (drawdown breaker)
+  risk profile [--risk-budget N]         View or set risk budget %
   watchlist [add|remove|tag|untag]       Watchlist management
   alerts [--due N] [--source S]          Check pending alerts
   calendar [--range N]                   Upcoming earnings calendar
@@ -112,11 +115,24 @@ Commands:
 
 Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/
+
+MCP: finstack mcp-server exposes every command above as an MCP tool over
+     stdio (registered by .mcp.json; invoked by the plugin host, not by hand).
 `);
     process.exit(command ? 0 : 1);
   }
 
   checkVersion();
+
+  // `mcp-server` is a transport, not an analytical command: it exposes the
+  // commands below as MCP tools over stdio JSON-RPC. It is dispatched here,
+  // outside the command table, because it is invoked by the plugin host (see
+  // .mcp.json), never by a person, and because it must not print to stdout —
+  // stdout is its protocol channel.
+  if (command === 'mcp-server') {
+    await runMcpServer(Object.keys(commands));
+    return;
+  }
 
   const fn = commands[command];
   if (!fn) {

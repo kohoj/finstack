@@ -64,4 +64,7 @@ export const paths = {
   get PROFILE_FILE(): string {
     return join(home(), 'profile.json');
   },
+  get EQUITY_FILE(): string {
+    return join(home(), 'equity.json');
+  },
 } as const;

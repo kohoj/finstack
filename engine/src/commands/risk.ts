@@ -1,3 +1,5 @@
+import { computeDrawdown, loadEquity, recordEquity } from '../data/equity';
+import { loadProfile, setRiskBudget } from '../data/profile';
 import { loadShadow, type ShadowEntry } from '../data/shadow';
 import { FinstackError } from '../errors';
 import { readJSONSafe } from '../fs';
@@ -47,6 +49,11 @@ interface RiskGate {
   pass: boolean;
   warnings: string[];
   blocks: string[];
+}
+
+function parseFlag(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  return idx >= 0 ? args[idx + 1] : undefined;
 }
 
 export function calculateConcentration(
@@ -155,11 +162,6 @@ function loadPortfolio(): Portfolio {
   return data as Portfolio;
 }
 
-function loadProfile(): { riskBudgetPct: number } {
-  const data = readJSONSafe<any>(paths.PROFILE_FILE, { riskBudgetPct: 2 });
-  return { riskBudgetPct: data.riskBudgetPct || 2 };
-}
-
 export async function risk(args: string[]) {
   const sub = args[0];
 
@@ -169,6 +171,15 @@ export async function risk(args: string[]) {
     const entry = validatePositiveNumber(args[2], 'entry price');
     const stop = validatePositiveNumber(args[3], 'stop price');
     validateStopVsEntry(entry, stop);
+
+    // Optional --shares N overrides budget-derived sizing with the user's
+    // actual intended share count. Without it, shares are back-solved from the
+    // risk budget, so stop-loss risk is always ≈ the budget and the gate's
+    // positionRisk block is tautological. With an explicit count the stop risk
+    // is whatever the user's size actually implies, so the block can fire.
+    const sharesFlag = parseFlag(args, '--shares');
+    const userShares =
+      sharesFlag !== undefined ? validatePositiveNumber(sharesFlag, 'shares') : null;
 
     const portfolio = loadPortfolio();
     const profile = loadProfile();
@@ -183,7 +194,15 @@ export async function risk(args: string[]) {
       );
     }
 
-    const sizing = calculatePositionSize(portfolioValue, profile.riskBudgetPct, entry, stop);
+    const riskPerShare = Math.abs(entry - stop);
+    const sizing =
+      userShares !== null
+        ? {
+            shares: userShares,
+            positionDollars: +(userShares * entry).toFixed(2),
+            riskDollars: +(userShares * riskPerShare).toFixed(2),
+          }
+        : calculatePositionSize(portfolioValue, profile.riskBudgetPct, entry, stop);
 
     // Post-trade weight of the *whole* position in this ticker, not just the
     // addition. Adding to an existing holding was measured against the new
@@ -206,7 +225,16 @@ export async function risk(args: string[]) {
         ticker: p.ticker,
         weight: ((p.shares * p.avgCost) / postTradeValue) * 100,
       }));
-    const gate = evaluateRiskGate(ticker, weight, existingWeights, profile.riskBudgetPct, 0);
+    // Real position risk at the stop: actual dollars lost if stopped out
+    // (shares · |entry−stop|, already computed as sizing.riskDollars) as a
+    // percentage of post-trade portfolio value. The gate's 4th argument is
+    // this stop-loss risk, NOT the risk *budget*. Passing riskBudgetPct here
+    // fed the gate the target (≤5, its own default budget of 2), so the
+    // positionRisk block could never fire. The dashboard path below already
+    // computes this correctly (stopRiskDollars / portfolioValue); size now
+    // matches it.
+    const stopRiskPct = postTradeValue > 0 ? (sizing.riskDollars / postTradeValue) * 100 : 0;
+    const gate = evaluateRiskGate(ticker, weight, existingWeights, stopRiskPct, 0);
 
     console.log(
       JSON.stringify(
@@ -220,6 +248,7 @@ export async function risk(args: string[]) {
             positionDollars: sizing.positionDollars,
             riskDollars: sizing.riskDollars,
             riskBudgetPct: profile.riskBudgetPct,
+            sizingMode: userShares !== null ? 'user-shares' : 'risk-budget',
             // Weight of the combined position after the trade. When adding to
             // an existing holding this exceeds the new tranche's own share.
             weightPct: +weight.toFixed(1),
@@ -229,6 +258,62 @@ export async function risk(args: string[]) {
           },
           riskGate: gate,
         },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  // Subcommand: snapshot — record a mark-to-market equity value.
+  //
+  // The engine has no live prices, so the caller (skills layer, via $F quote)
+  // supplies the current portfolio value. This feeds the equity curve that the
+  // drawdown circuit breaker reads.
+  if (sub === 'snapshot') {
+    const value = validatePositiveNumber(args[1], 'portfolio value');
+    const isoDate = new Date().toISOString().split('T')[0];
+    const history = recordEquity(value, isoDate);
+    const dd = computeDrawdown(history);
+    console.log(
+      JSON.stringify(
+        {
+          recorded: { date: isoDate, value },
+          snapshots: history.snapshots.length,
+          peak: dd.peak,
+          peakDate: dd.peakDate,
+          drawdownPct: dd.drawdownPct,
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  // Subcommand: profile — view or set the risk profile.
+  //
+  // `risk profile` prints the current budget; `risk profile --risk-budget N`
+  // sets it. This is the only writer for profile.json — without it
+  // riskBudgetPct was pinned to its default with no way to change it.
+  if (sub === 'profile') {
+    const budgetFlag = parseFlag(args, '--risk-budget');
+    if (budgetFlag !== undefined) {
+      const pct = validatePositiveNumber(budgetFlag, 'risk budget');
+      const updated = setRiskBudget(pct);
+      console.log(
+        JSON.stringify(
+          { riskBudgetPct: updated.riskBudgetPct, updatedAt: updated.updatedAt },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    const profile = loadProfile();
+    console.log(
+      JSON.stringify(
+        { riskBudgetPct: profile.riskBudgetPct, updatedAt: profile.updatedAt || null },
         null,
         2,
       ),
@@ -301,12 +386,38 @@ export async function risk(args: string[]) {
   // Risk budget
   const riskBudgetDollars = portfolioValue * (profile.riskBudgetPct / 100);
 
+  // Drawdown circuit breaker. The engine has no live prices, so drawdown is
+  // read purely from the recorded equity curve, which the skills layer feeds
+  // with real marks via `risk snapshot <value>` (value from $F quote).
+  // Cost-basis portfolioValue is deliberately NOT injected here: it does not
+  // move with the market, so it can never express a drawdown and would only
+  // overwrite a real same-day mark. drawdownPct is 0 until the curve holds a
+  // peak above its latest value.
+  const equity = loadEquity();
+  const dd = computeDrawdown(equity);
+  const DRAWDOWN_LIMIT = 15;
+  const drawdownAlert =
+    dd.drawdownPct > DRAWDOWN_LIMIT
+      ? `Portfolio drawdown ${dd.drawdownPct.toFixed(1)}% exceeds circuit breaker (${DRAWDOWN_LIMIT}%). Stop. Breathe. Run /reflect before trading.`
+      : dd.drawdownPct > DRAWDOWN_LIMIT * 0.7
+        ? `Portfolio drawdown ${dd.drawdownPct.toFixed(1)}% approaching circuit breaker (${DRAWDOWN_LIMIT}%)`
+        : null;
+
   const output = {
     portfolioValue: +portfolioValue.toFixed(2),
     positions: positionRisks.length,
     riskBudget: {
       pct: profile.riskBudgetPct,
       maxLossPerTrade: +riskBudgetDollars.toFixed(2),
+    },
+    drawdown: {
+      peak: dd.peak,
+      peakDate: dd.peakDate,
+      current: dd.current,
+      drawdownPct: dd.drawdownPct,
+      circuitBreakerPct: DRAWDOWN_LIMIT,
+      tripped: dd.drawdownPct > DRAWDOWN_LIMIT,
+      hasHistory: equity.snapshots.length > 0,
     },
     concentration,
     positionRisks: positionRisks.sort((a, b) => b.weight - a.weight),
@@ -317,6 +428,7 @@ export async function risk(args: string[]) {
         riskPct: p.stopRiskPct,
       })),
       concentrationWarnings: concentration.warnings,
+      ...(drawdownAlert ? { drawdown: drawdownAlert } : {}),
     },
   };
 

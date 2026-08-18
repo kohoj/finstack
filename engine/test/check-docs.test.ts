@@ -13,8 +13,11 @@ import { describe, expect, it } from 'bun:test';
 import {
   extractCLICommands,
   extractCommandCountClaims,
+  extractDocumentedStateFiles,
   extractHelpCommands,
+  extractMcpServerVersion,
   extractPreamble,
+  extractRealStateFiles,
   extractSkillCountClaims,
   extractSkillEngineRefs,
   extractSkillReferences,
@@ -140,6 +143,42 @@ describe('extractSkillReferences', () => {
   it('ignores paths that look like skill references', () => {
     const md = '---\nname: sense\n---\n\nWrite to /tmp/output and /usr/local.';
     expect(extractSkillReferences(md, 'sense')).toEqual([]);
+  });
+});
+
+describe('state-file drift', () => {
+  const finstackTree = (lines: string) => `Prose.\n\`\`\`\n~/.finstack/\n${lines}\n\`\`\`\n`;
+
+  it('extracts state files only from the ~/.finstack/ layout block', () => {
+    const doc = `A mention of settings.json in prose.\n${finstackTree(
+      '├── portfolio.json\n├── config.yaml',
+    )}`;
+    expect(extractDocumentedStateFiles(doc)).toEqual(['config.yaml', 'portfolio.json']);
+  });
+
+  it('reads real state files out of join(...) calls', () => {
+    const src = `
+      get PORTFOLIO_FILE() { return join(home(), 'portfolio.json'); }
+      const LEARNINGS = join(paths.FINSTACK_HOME, 'learnings.jsonl');
+    `;
+    expect(extractRealStateFiles(src)).toEqual(['learnings.jsonl', 'portfolio.json']);
+  });
+
+  it('flags a documented file that no source touches', () => {
+    const documented = extractDocumentedStateFiles(finstackTree('├── config.yaml'));
+    const real = extractRealStateFiles("join(home(), 'portfolio.json')");
+    expect(documented.filter(f => !real.includes(f))).toEqual(['config.yaml']);
+  });
+});
+
+describe('mcp server version', () => {
+  it('extracts the SERVER_VERSION literal', () => {
+    const src = `export const SERVER_VERSION = '0.7.0';\nconst other = '1.0';`;
+    expect(extractMcpServerVersion(src)).toBe('0.7.0');
+  });
+
+  it('returns null when the constant is absent', () => {
+    expect(extractMcpServerVersion('no version here')).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "finstack",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Adversarial investment research with memory. Argues both sides of a thesis, traces chain reactions across parallel causal paths, and measures what your execution costs you against a disciplined counterfactual.",
   "author": {
     "name": "kohoj",
@@ -29,7 +29,7 @@
       "Write"
     ],
     "websiteURL": "https://github.com/kohoj/finstack",
-    "brandColor": "#0B7A5A",
+    "brandColor": "#1B211E",
     "defaultPrompt": [
       "Use finstack to check my portfolio for concentration risk",
       "Use finstack to judge whether I should buy NVDA at current price",

@@ -1,6 +1,6 @@
 # finstack: OpenAI Codex Plugin 合规性报告
 
-**版本**: v0.7.3
+**版本**: v0.7.4
 
 **日期**: 2026-08-26
 
@@ -15,7 +15,7 @@ finstack 已完成向 OpenAI Codex Plugin 规范的完整迁移，所有 P0-P4 �
 ### P0（阻断安装）— 全部完成 ✅
 
 - ✅ **plugin.json 位置**: 已移至 `.codex-plugin/`（OpenAI 规范要求）
-- ✅ **$schema 字段**: 指向 `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`
+- ✅ **Manifest 字段**: 已移除 Codex 校验器不接受的 `$schema` 提示字段
 - ✅ **环境变量优先级**: `PLUGIN_ROOT` 优先于 `CODEX_PLUGIN_ROOT`
 - ✅ **数据目录**: `PLUGIN_DATA` 优先于 `FINSTACK_HOME`
 
@@ -36,8 +36,9 @@ finstack 已完成向 OpenAI Codex Plugin 规范的完整迁移，所有 P0-P4 �
 ### P3（视觉完整性）— 全部完成 ✅
 
 - ✅ **icon.png**: 512×512 白底圆角单色插件图标，同时用于 `composerIcon` 和 `logo`（26KB）
-- ✅ **wordmark.png**: 1600×480 横向标识，仅用于宽幅文档（469KB）
-- ✅ **截图 4 个**（1600×900，共 4.1MB）：
+- ✅ **wordmark.png**: 1600×480 新版横向标识，仅用于宽幅文档（34KB）
+- ✅ **wordmark.svg / wordmark-reversed.svg**: 明暗两套可缩放路径字标
+- ✅ **截图 4 个**（1600×900，共 3.8MB）：
   - screenshot-portfolio.png: 投资组合与风险指标
   - screenshot-judge.png: Bull vs Bear 对抗论证
   - screenshot-alpha.png: 真实交易 vs shadow 基准对比
@@ -54,7 +55,7 @@ finstack 已完成向 OpenAI Codex Plugin 规范的完整迁移，所有 P0-P4 �
 | 项目 | OpenAI Codex 要求 | Agent Plugins 1.0.0 | finstack 状态 |
 |------|-------------------|---------------------|---------------|
 | plugin.json 位置 | `.codex-plugin/` | 根目录 | ✅ `.codex-plugin/` |
-| $schema | 可选但推荐 | 必需 | ✅ 已添加 |
+| $schema | 不接受未知字段 | 可选实现差异 | ✅ 已移除 |
 | 环境变量 | PLUGIN_ROOT + PLUGIN_DATA | 同 | ✅ 标准优先 |
 | MCP 配置 | .mcp.json | mcp.json | ✅ .mcp.json |
 | Hooks | hooks/hooks.json | 未定义 | ✅ 已创建 |
@@ -76,6 +77,8 @@ finstack/
 ├── assets/
 │   ├── icon.png             ✅ 512×512
 │   ├── wordmark.png         ✅ 1600×480
+│   ├── wordmark.svg         ✅ 矢量深色版
+│   ├── wordmark-reversed.svg ✅ 矢量反白版
 │   ├── screenshot-*.png     ✅ 4 个 1600×900
 │   └── README.md            ✅ 资源说明
 ├── skills/                  ✅ 9 个 SKILL.md
@@ -95,8 +98,8 @@ finstack/
 ## 质量门禁
 
 ```
-✓ 542 tests pass (13 skip, 0 fail)
-✓ 28/28 docs checks pass
+✓ 574 tests pass (13 skip, 0 fail)
+✓ 31/31 docs checks pass
 ✓ lint clean (biome)
 ✓ typecheck clean (tsc)
 ✓ 9 个 preamble 字节一致

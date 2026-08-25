@@ -1,8 +1,12 @@
-# finstack
+<h1 align="center">
+  <img src="assets/wordmark.png" alt="finstack" width="720">
+</h1>
 
-[![CI](https://github.com/kohoj/finstack/actions/workflows/ci.yml/badge.svg)](https://github.com/kohoj/finstack/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Bun](https://img.shields.io/badge/bun-1.0+-f472b6.svg)](https://bun.sh)
+<p align="center">
+  <a href="https://github.com/kohoj/finstack/actions/workflows/ci.yml"><img src="https://github.com/kohoj/finstack/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://bun.sh"><img src="https://img.shields.io/badge/bun-1.0+-f472b6.svg" alt="Bun 1.0+"></a>
+</p>
 
 **An operating system for investment thinking.**
 

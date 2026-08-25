@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] — 2026-08-26
+
+### Changed
+
+**Unified monochrome identity.** Rebuilt the horizontal wordmark with
+custom-spaced Instrument Sans Medium outlines, added primary and reversed SVG
+lockups, changed the Codex brand color to graphite, and updated every repository
+surface that displayed the previous wordmark.
+
 ## [0.7.3] — 2026-08-26
 
 ### Changed

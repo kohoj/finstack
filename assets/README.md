@@ -2,9 +2,11 @@
 
 ## Brand System
 
-Warm bone, graphite, and deep emerald. The stacked mark expresses finstack's
-three defining ideas: layered evidence, opposing arguments, and a single
-decision path through the middle.
+Warm bone and graphite form the primary identity. Deep emerald is reserved for
+functional signals such as positive performance and executable actions; it is
+not part of the logo. The stacked mark expresses finstack's three defining
+ideas: layered evidence, opposing arguments, and a single decision path through
+the middle.
 
 ## Files
 
@@ -15,11 +17,21 @@ decision path through the middle.
 
 ### wordmark.png (1600×480)
 - PNG format, warm-bone background
-- Horizontal lockup of finstack wordmark
+- Horizontal lockup with the monochrome mark and custom-spaced Instrument Sans
+  Medium letterforms
 - Used only in wide documentation headers, never as a plugin logo
 
+### wordmark.svg (1600×480 viewBox)
+- Primary scalable horizontal lockup on a transparent background
+- Letterforms are converted to outlines, so no font is required at runtime
+- Instrument Sans is licensed under the SIL Open Font License 1.1
+
+### wordmark-reversed.svg (1600×480 viewBox)
+- White monochrome lockup for dark surfaces
+- Shares the exact geometry of the primary wordmark
+
 ### Screenshots (1600×900)
-- `screenshot-portfolio.png`: Portfolio view with risk metrics
+- `screenshot-portfolio.png`: Portfolio view with the current reversed wordmark
 - `screenshot-judge.png`: Bull vs Bear adversarial exchange
 - `screenshot-alpha.png`: Real vs shadow comparison chart
 - `screenshot-cascade.png`: Multi-step chain reaction analysis

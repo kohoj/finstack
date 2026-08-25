@@ -1,6 +1,6 @@
 # finstack: OpenAI Codex Plugin 合规性报告
 
-**版本**: v0.7.4
+**版本**: v0.7.5
 
 **日期**: 2026-08-26
 
@@ -36,9 +36,9 @@ finstack 已完成向 OpenAI Codex Plugin 规范的完整迁移，所有 P0-P4 �
 ### P3（视觉完整性）— 全部完成 ✅
 
 - ✅ **icon.png**: 512×512 白底圆角单色插件图标，同时用于 `composerIcon` 和 `logo`（26KB）
-- ✅ **wordmark.png**: 1600×480 新版横向标识，仅用于宽幅文档（34KB）
+- ✅ **wordmark.png**: 1600×480 新版横向标识，仅用于宽幅文档（41KB）
 - ✅ **wordmark.svg / wordmark-reversed.svg**: 明暗两套可缩放路径字标
-- ✅ **截图 4 个**（1600×900，共 3.8MB）：
+- ✅ **截图 4 个**（1600×900，共 3.7MB）：
   - screenshot-portfolio.png: 投资组合与风险指标
   - screenshot-judge.png: Bull vs Bear 对抗论证
   - screenshot-alpha.png: 真实交易 vs shadow 基准对比

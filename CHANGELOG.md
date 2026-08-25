@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] — 2026-08-26
+
+### Changed
+
+**Editorial wordmark.** Replaced the generic grotesk lettering with a
+custom-spaced Newsreader 72pt Medium lockup. The high-contrast serif gives the
+research product a materially more distinctive, institutional voice across the
+primary, reversed, README, and screenshot surfaces.
+
 ## [0.7.4] — 2026-08-26
 
 ### Changed

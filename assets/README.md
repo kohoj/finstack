@@ -17,14 +17,14 @@ the middle.
 
 ### wordmark.png (1600×480)
 - PNG format, warm-bone background
-- Horizontal lockup with the monochrome mark and custom-spaced Instrument Sans
+- Horizontal lockup with the monochrome mark and custom-spaced Newsreader 72pt
   Medium letterforms
 - Used only in wide documentation headers, never as a plugin logo
 
 ### wordmark.svg (1600×480 viewBox)
 - Primary scalable horizontal lockup on a transparent background
 - Letterforms are converted to outlines, so no font is required at runtime
-- Instrument Sans is licensed under the SIL Open Font License 1.1
+- Newsreader is licensed under the SIL Open Font License 1.1
 
 ### wordmark-reversed.svg (1600×480 viewBox)
 - White monochrome lockup for dark surfaces

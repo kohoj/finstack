@@ -25,7 +25,7 @@ import { FinstackError } from '../errors';
 
 // The plugin host displays this. It is asserted equal to the repository VERSION
 // by scripts/check-docs.ts so it cannot silently drift.
-export const SERVER_VERSION = '0.7.4';
+export const SERVER_VERSION = '0.7.5';
 
 // The protocol revision to fall back to when a client does not name one.
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18';

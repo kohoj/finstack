@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-08-26
+
 ### Security
 
 **API keys leaked into error messages.** Provider URLs carry the key inline
@@ -48,6 +50,12 @@ views and sets it (validated to (0, 100], written under a lock), and a new
 `data/profile.ts` module owns both ends of the file.
 
 ### Fixed
+
+**Plugin logo used the horizontal wordmark.** The manifest pointed `logo` at a
+1600×480 documentation banner, which Codex cropped and scaled poorly in square
+plugin surfaces. Both `logo` and `composerIcon` now use the intended 512×512
+brand mark; the horizontal asset is named `wordmark.png` to make its role
+unambiguous.
 
 **Backtest and alpha used placeholder prices.** `backtest` computed returns
 against a stubbed closing price and `alpha`'s benchmark aggregate was never

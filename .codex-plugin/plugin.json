@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "finstack",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Adversarial investment research with memory. Argues both sides of a thesis, traces chain reactions across parallel causal paths, and measures what your execution costs you against a disciplined counterfactual.",
   "author": {
     "name": "kohoj",
@@ -46,7 +46,7 @@
     "privacyPolicyURL": "https://github.com/kohoj/finstack/blob/main/SECURITY.md",
     "termsOfServiceURL": "https://github.com/kohoj/finstack/blob/main/LICENSE",
     "composerIcon": "./assets/icon.png",
-    "logo": "./assets/logo.png",
+    "logo": "./assets/icon.png",
     "screenshots": [
       "./assets/screenshot-alpha.png",
       "./assets/screenshot-cascade.png",

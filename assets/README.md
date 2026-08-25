@@ -9,7 +9,7 @@ decision path through the middle.
 ## Files
 
 ### icon.png (512×512 pixels)
-- PNG format, transparent background
+- PNG format, pure-white rounded-square tile with transparent outer corners
 - Shows finstack's brand identity
 - Used as both the plugin logo and composer icon
 

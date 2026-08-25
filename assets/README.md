@@ -10,7 +10,7 @@ decision path through the middle.
 
 ### icon.png (512×512 pixels)
 - PNG format, pure-white rounded-square tile with transparent outer corners
-- Shows finstack's brand identity
+- Shows finstack's monochrome graphite brand mark
 - Used as both the plugin logo and composer icon
 
 ### wordmark.png (1600×480)

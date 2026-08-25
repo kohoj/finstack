@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-08-26
+
+### Changed
+
+**Monochrome plugin mark.** Removed the emerald center accent from the square
+plugin icon, leaving a cleaner graphite mark on the white rounded tile.
+
+**Manifest conformance.** Removed unsupported schema hint fields from the plugin
+and MCP manifests so both match Codex's validated ingestion contract.
+
 ## [0.7.2] — 2026-08-26
 
 ### Changed

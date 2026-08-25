@@ -119,7 +119,7 @@ cec3457 feat: add complete visual assets - production ready
 1. 打开 ChatGPT Desktop 或 Codex
 2. Settings → Plugins → Add plugin marketplace
 3. 填写：
-   - Source: `kohoj/finstack` 或 `https://github.com/kohoj/finstack`
+   - Source: `kohoj/agent-plugins` 或 `https://github.com/kohoj/agent-plugins`
    - Git ref: `main`
    - Sparse paths: 留空（加载整个插件）
 4. Click "Add marketplace"
@@ -127,7 +127,8 @@ cec3457 feat: add complete visual assets - production ready
 ### 命令行安装（可选）
 
 ```bash
-codex plugin marketplace add kohoj/finstack
+codex plugin marketplace add kohoj/agent-plugins
+codex plugin add finstack@kohoj-agent-plugins
 codex plugin marketplace list
 ```
 

@@ -53,8 +53,8 @@ Done.
 
 Install the plugin so Codex can find the skills:
 
-  codex plugin marketplace add kohoj/finstack
-  codex plugin add finstack@finstack
+  codex plugin marketplace add kohoj/agent-plugins
+  codex plugin add finstack@kohoj-agent-plugins
 
 Then just ask — the skills are model-invoked, so there are no commands to
 memorize:

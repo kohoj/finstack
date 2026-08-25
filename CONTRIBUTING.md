@@ -90,7 +90,6 @@ engine/src/
 └── report/                 # HTML report templates
 
 .codex-plugin/plugin.json   # Plugin manifest Codex reads
-.agents/plugins/            # Marketplace listing for distribution
 skills/{name}/SKILL.md      # The nine skills
 
 engine/test/
@@ -104,6 +103,10 @@ engine/test/
 test/skill-e2e/             # Real skill invocations (EVALS=1)
 scripts/check-docs.ts       # Documentation freshness checks
 ```
+
+The distribution catalog lives in
+[`kohoj/agent-plugins`](https://github.com/kohoj/agent-plugins), separate from
+the plugin source.
 
 ## Adding a New Engine Command
 
@@ -172,4 +175,3 @@ produces an error. Each of those is a separate promise the code makes.
 When you fix a bug, write the test that fails first. Several fixes in this
 project came from a test that reproduced the defect before anything changed —
 that is the only way to know the fix works.
-

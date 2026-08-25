@@ -131,8 +131,8 @@ Machine detects threats. Human decides death.
 ## Install
 
 ```bash
-codex plugin marketplace add kohoj/finstack
-codex plugin add finstack@finstack
+codex plugin marketplace add kohoj/agent-plugins
+codex plugin add finstack@kohoj-agent-plugins
 ```
 
 That's it. The engine compiles itself on first use — installing

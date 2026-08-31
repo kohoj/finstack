@@ -3,6 +3,7 @@
 import { execFile } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadPortfolio, valuePortfolio } from '../data/portfolio';
 import { FinstackError } from '../errors';
 import { readJSONSafe } from '../fs';
 import { paths } from '../paths';
@@ -27,23 +28,25 @@ function _parseFlag(args: string[], flag: string): string | undefined {
 }
 
 function generateSenseReport(): string {
-  const portfolio = readJSONSafe<any>(paths.PORTFOLIO_FILE, { positions: [] });
+  const portfolio = loadPortfolio();
+  const valuation = valuePortfolio(portfolio);
   const watchlist = readJSONSafe<any[]>(paths.WATCHLIST_FILE, []);
 
-  const positions = portfolio.positions || [];
+  const positions = portfolio.positions;
   const sections = [];
 
   // Portfolio heatmap (simple table of positions)
   if (positions.length > 0) {
     const rows = positions
-      .map(
-        (p: any) =>
-          `<tr><td class="px-3 py-2 font-mono">${p.ticker}</td><td class="px-3 py-2">${p.shares}</td><td class="px-3 py-2">$${p.avgCost.toFixed(2)}</td></tr>`,
-      )
+      .map(position => {
+        const mark = valuation.positions.find(item => item.ticker === position.ticker);
+        const basis = mark?.priceSource === 'mark' ? `mark · ${mark.markSource}` : 'cost fallback';
+        return `<tr><td class="px-3 py-2 font-mono">${position.ticker}</td><td class="px-3 py-2">${position.shares}</td><td class="px-3 py-2">${position.currency} ${position.avgCost.toFixed(2)}</td><td class="px-3 py-2">${basis}</td></tr>`;
+      })
       .join('');
     sections.push({
       title: 'Portfolio Positions',
-      content: `<table class="w-full"><thead><tr><th class="px-3 py-2 text-left">Ticker</th><th class="px-3 py-2 text-left">Shares</th><th class="px-3 py-2 text-left">Avg Cost</th></tr></thead><tbody>${rows}</tbody></table>`,
+      content: `<table class="w-full"><thead><tr><th class="px-3 py-2 text-left">Ticker</th><th class="px-3 py-2 text-left">Shares</th><th class="px-3 py-2 text-left">Avg Cost</th><th class="px-3 py-2 text-left">Valuation</th></tr></thead><tbody>${rows}</tbody></table>`,
     });
   }
 
@@ -70,19 +73,21 @@ function generateSenseReport(): string {
 }
 
 function generateTrackReport(): string {
-  const portfolio = readJSONSafe<any>(paths.PORTFOLIO_FILE, { positions: [] });
+  const portfolio = loadPortfolio();
+  const valuation = valuePortfolio(portfolio);
   const shadow = readJSONSafe<any>(paths.SHADOW_FILE, { entries: [] });
   const theses = readJSONSafe<any>(paths.THESES_FILE, { theses: [] });
 
-  const positions = portfolio.positions || [];
+  const positions = valuation.positions.filter(position => position.valueBase !== null);
   const sections = [];
 
-  // Sector weight pie chart (by avgCost * shares)
+  // Allocation must use an explicit market mark, or a visibly labelled cost
+  // fallback. Cost is accounting data, never a silently implied quote.
   if (positions.length > 0) {
-    const totalValue = positions.reduce((s: number, p: any) => s + p.shares * p.avgCost, 0);
-    const weights: { ticker: string; weight: number }[] = positions.map((p: any) => ({
-      ticker: p.ticker,
-      weight: ((p.shares * p.avgCost) / totalValue) * 100,
+    const totalValue = valuation.totalValueBase;
+    const weights: { ticker: string; weight: number }[] = positions.map(position => ({
+      ticker: position.ticker,
+      weight: ((position.valueBase ?? 0) / totalValue) * 100,
     }));
 
     const colors = [
@@ -100,15 +105,25 @@ function generateTrackReport(): string {
 
     sections.push({
       title: 'Portfolio Allocation',
-      content: weights
-        .map(w => `<span class="inline-block mr-4">${w.ticker}: ${w.weight.toFixed(1)}%</span>`)
-        .join(''),
+      content: `<p class="mb-3">${portfolio.baseCurrency} ${totalValue.toFixed(2)} · ${valuation.fullyMarked ? 'all positions explicitly marked' : `cost fallback: ${valuation.costFallbackTickers.join(', ') || 'none'}`}</p>${weights
+        .map(
+          weight =>
+            `<span class="inline-block mr-4">${weight.ticker}: ${weight.weight.toFixed(1)}%</span>`,
+        )
+        .join('')}`,
       chart: pieChart(
         weights.map(w => w.ticker),
         weights.map(w => +w.weight.toFixed(1)),
         colors.slice(0, weights.length),
       ),
       chartId: 'allocationChart',
+    });
+  }
+
+  if (valuation.unvaluedTickers.length > 0) {
+    sections.push({
+      title: 'Incomplete Valuation',
+      content: `<p>Excluded from base-currency allocation because FX conversion is missing: ${valuation.unvaluedTickers.join(', ')}. Add a mark with its FX rate before relying on this report.</p>`,
     });
   }
 
@@ -144,7 +159,7 @@ function generateTrackReport(): string {
 
   return renderReport({
     title: 'Portfolio Track Report',
-    subtitle: 'Performance, allocation, and thesis status',
+    subtitle: `Allocation in ${portfolio.baseCurrency}; mark provenance shown where available`,
     date: today(),
     sections,
   });

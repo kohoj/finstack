@@ -7,10 +7,10 @@
 // speaks JSON-RPC 2.0 over the process's stdin/stdout, one message per line
 // (the MCP stdio framing — newline-delimited, no Content-Length headers).
 //
-// Design: a subprocess bridge, not in-process dispatch. Each tool call
-// re-invokes the same finstack binary as a child process, feeding CLI args and
-// (for the two composing commands) a JSON document on the child's stdin, then
-// captures the child's stdout. Two seams force this:
+// Design: a subprocess bridge for CLI commands. Most tool calls re-invoke the
+// same finstack binary as a child process, feeding CLI args and (for composing
+// commands) a JSON document on the child's stdin, then capturing stdout. Two
+// seams force that isolation:
 //
 //   1. Every command writes its result to the global `console.log`. In this
 //      process, stdout IS the JSON-RPC channel — a command printing there would
@@ -20,7 +20,10 @@
 //
 // Re-invoking as a child isolates both globals cleanly and runs the exact CLI
 // code path, so a tool can never diverge from the command a human would run.
+// Desk is the narrow exception: its local server and await_decision promise
+// map must remain in this MCP process, so those tools are direct and explicit.
 
+import { awaitDeskDecision, type DeskDecisionRequest, ensureDesk, stopDesk } from '../desk/server';
 import { FinstackError } from '../errors';
 
 // The plugin host displays this. It is asserted equal to the repository VERSION
@@ -30,9 +33,9 @@ export const SERVER_VERSION = '0.7.5';
 // The protocol revision to fall back to when a client does not name one.
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18';
 
-// Commands whose `add` subcommand reads a JSON document from stdin. For these,
+// Commands with a composed subcommand that reads a JSON document from stdin. For these,
 // the tool accepts a `document` object that the bridge pipes to the child.
-const STDIN_COMMANDS = new Set(['thesis', 'shadow']);
+const STDIN_COMMANDS = new Set(['thesis', 'shadow', 'portfolio']);
 
 /**
  * One-line tool descriptions, keyed by command name. Every registered command
@@ -44,7 +47,8 @@ const DESCRIPTIONS: Record<string, string> = {
   financials: 'Financial data and ratios. Usage: finstack financials <ticker>',
   scan: 'Multi-source signal scanning. Usage: finstack scan [--source trending|news|all]',
   regime: 'Consensus assumption register. Usage: finstack regime list|add|update|alerts',
-  portfolio: 'Portfolio management. Usage: finstack portfolio show|add|remove|init',
+  portfolio:
+    'Portfolio management with explicit currencies, marks, and scenario proxies. Usage: finstack portfolio show|init|import|add|mark|exposure|remove — pass a portfolio snapshot as `document` when the first arg is "import".',
   keys: 'API key management. Usage: finstack keys set|list|remove',
   macro: 'FRED macro indicators. Usage: finstack macro [series]',
   filing: 'SEC EDGAR filings. Usage: finstack filing <ticker>',
@@ -66,6 +70,7 @@ const DESCRIPTIONS: Record<string, string> = {
   scenario: 'Scenario analysis. Usage: finstack scenario <name|custom>',
   shadow:
     'Shadow portfolio. Usage: finstack shadow add|close|show — pass the shadow entry JSON as `document` when the first arg is "add".',
+  desk: 'Open the local decision workbench. Usage: finstack desk [--no-open]',
 };
 
 interface Tool {
@@ -85,13 +90,46 @@ function buildTool(name: string): Tool {
   if (STDIN_COMMANDS.has(name)) {
     properties.document = {
       type: 'object',
-      description: 'JSON document piped to the command on stdin (used by the `add` subcommand).',
+      description:
+        'JSON document piped to the command on stdin (used by the documented composed subcommand).',
     };
   }
   return {
     name,
     description: DESCRIPTIONS[name] as string,
     inputSchema: { type: 'object', properties, required: [] },
+  };
+}
+
+function buildAwaitDecisionTool(): Tool {
+  return {
+    name: 'await_decision',
+    description:
+      'Open a bounded human decision request in Desk and wait for accept, edit, respond, ignore, or timeout. Reuse requestId when retrying.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        requestId: { type: 'string', description: 'Stable idempotency key for this decision.' },
+        action_request: {
+          type: 'object',
+          description: 'Action the human is being asked to decide.',
+        },
+        config: { type: 'object', description: 'Allowed response controls.' },
+        description: { type: 'string', description: 'Human-readable decision context.' },
+        waitSeconds: { type: 'number', description: 'Wait time, maximum 86400 seconds.' },
+      },
+      required: ['description'],
+    },
+  };
+}
+
+/** An explicit, discoverable entry point for hosts with a visible Desk action. */
+function buildDeskOpenTool(): Tool {
+  return {
+    name: 'desk_open',
+    description:
+      'Open or focus the authenticated local FinStack Desk. Returns a browser handoff URL; no portfolio data leaves this computer.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
   };
 }
 
@@ -222,6 +260,55 @@ async function handleToolCall(
   const args = Array.isArray(rawArgs.args) ? rawArgs.args.map(String) : [];
   const document = rawArgs.document !== undefined ? JSON.stringify(rawArgs.document) : undefined;
 
+  if (name === 'desk' || name === 'desk_open') {
+    try {
+      const connection = await ensureDesk();
+      reply(id, {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ...connection,
+              browserHandoff: { url: connection.url, required: false },
+            }),
+          },
+        ],
+        isError: false,
+      });
+    } catch (e) {
+      reply(id, { content: [{ type: 'text', text: (e as Error).message }], isError: true });
+    }
+    return;
+  }
+
+  if (name === 'await_decision') {
+    if (typeof rawArgs.description !== 'string' || !rawArgs.description.trim()) {
+      replyError(id, -32602, 'await_decision requires a non-empty description');
+      return;
+    }
+    try {
+      const request: DeskDecisionRequest = {
+        ...(typeof rawArgs.requestId === 'string' ? { requestId: rawArgs.requestId } : {}),
+        ...(rawArgs.action_request && typeof rawArgs.action_request === 'object'
+          ? { action_request: rawArgs.action_request as DeskDecisionRequest['action_request'] }
+          : {}),
+        ...(rawArgs.config && typeof rawArgs.config === 'object'
+          ? { config: rawArgs.config as DeskDecisionRequest['config'] }
+          : {}),
+        description: rawArgs.description,
+      };
+      const waitSeconds =
+        typeof rawArgs.waitSeconds === 'number' && Number.isFinite(rawArgs.waitSeconds)
+          ? rawArgs.waitSeconds
+          : 240;
+      const result = await awaitDeskDecision(request, waitSeconds);
+      reply(id, { content: [{ type: 'text', text: JSON.stringify(result) }], isError: false });
+    } catch (e) {
+      reply(id, { content: [{ type: 'text', text: (e as Error).message }], isError: true });
+    }
+    return;
+  }
+
   // A spawn failure is a fault in this request alone; report it to the caller
   // and keep the server loop alive rather than tearing down every session.
   try {
@@ -265,19 +352,30 @@ export async function runMcpServer(commandNames: string[]): Promise<void> {
     }
   }
 
-  const tools = commandNames.map(buildTool);
+  const tools = [...commandNames.map(buildTool), buildDeskOpenTool(), buildAwaitDecisionTool()];
   const prefix = launcherPrefix();
 
-  let buffer = '';
-  for await (const chunk of process.stdin) {
-    buffer += Buffer.from(chunk as Uint8Array).toString('utf-8');
-    for (let nl = buffer.indexOf('\n'); nl !== -1; nl = buffer.indexOf('\n')) {
-      const line = buffer.slice(0, nl).trim();
-      buffer = buffer.slice(nl + 1);
-      if (line) await handleMessage(line, prefix, tools);
+  try {
+    let buffer = '';
+    for await (const chunk of process.stdin) {
+      buffer += Buffer.from(chunk as Uint8Array).toString('utf-8');
+      for (let nl = buffer.indexOf('\n'); nl !== -1; nl = buffer.indexOf('\n')) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (line) await handleMessage(line, prefix, tools);
+      }
     }
+  } finally {
+    stopDesk();
   }
 }
 
 // Exposed for tests: the pure pieces that do not need a live stdio loop.
-export const _internal = { buildTool, DESCRIPTIONS, STDIN_COMMANDS, launcherPrefix };
+export const _internal = {
+  buildAwaitDecisionTool,
+  buildDeskOpenTool,
+  buildTool,
+  DESCRIPTIONS,
+  STDIN_COMMANDS,
+  launcherPrefix,
+};

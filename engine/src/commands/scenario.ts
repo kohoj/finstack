@@ -1,6 +1,7 @@
+import { loadPortfolio, type PositionScenarioExposure, valuePortfolio } from '../data/portfolio';
+import { resolveScenarioExposure } from '../data/scenario-exposure';
 import { FinstackError } from '../errors';
-import { readJSONSafe } from '../fs';
-import { paths } from '../paths';
+import { validateTicker } from '../validation';
 
 function parseFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -10,29 +11,68 @@ function parseFlag(args: string[], flag: string): string | undefined {
 interface ScenarioConfig {
   name: string;
   description: string;
-  factors: Record<string, number>; // ticker/ETF → expected return
+  /** Explicit factor returns. No missing factor silently becomes SPY. */
+  factors: Record<string, number>;
+  /**
+   * A declared broad-market assumption used only by scenarios intentionally
+   * defined as market shocks. It applies to known, mapped equities and is
+   * labelled as a market assumption in the result.
+   */
+  marketFactor?: number;
 }
 
 export const SCENARIOS: Record<string, ScenarioConfig> = {
   'rates+100bp': {
     name: 'rates+100bp',
     description: 'Interest rates +100bp',
-    factors: { SPY: -0.08, TLT: -0.15, GLD: 0.05, XLF: 0.03, XLU: -0.05, XLK: -0.1 },
+    factors: {
+      SPY: -0.08,
+      TLT: -0.15,
+      GLD: 0.05,
+      XLF: 0.03,
+      XLU: -0.05,
+      XLK: -0.1,
+      XLI: -0.07,
+      XLY: -0.1,
+      XLV: -0.04,
+      XLE: -0.02,
+      XLB: -0.08,
+      XLP: -0.02,
+      XLRE: -0.1,
+      XLC: -0.09,
+    },
   },
   'rates-100bp': {
     name: 'rates-100bp',
     description: 'Interest rates -100bp',
-    factors: { SPY: 0.05, TLT: 0.12, GLD: -0.03, XLF: -0.02, XLU: 0.04, XLK: 0.08 },
+    factors: {
+      SPY: 0.05,
+      TLT: 0.12,
+      GLD: -0.03,
+      XLF: -0.02,
+      XLU: 0.04,
+      XLK: 0.08,
+      XLI: 0.04,
+      XLY: 0.07,
+      XLV: 0.03,
+      XLE: 0.01,
+      XLB: 0.04,
+      XLP: 0.02,
+      XLRE: 0.08,
+      XLC: 0.06,
+    },
   },
   'spy-20pct': {
     name: 'spy-20pct',
     description: 'Market crash -20%',
     factors: { SPY: -0.2 },
+    marketFactor: -0.2,
   },
   'spy+20pct': {
     name: 'spy+20pct',
     description: 'Market rally +20%',
     factors: { SPY: 0.2 },
+    marketFactor: 0.2,
   },
   'oil+30pct': {
     name: 'oil+30pct',
@@ -42,155 +82,149 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
   recession: {
     name: 'recession',
     description: 'Recession',
-    factors: { SPY: -0.3, TLT: 0.2, GLD: 0.15, XLU: 0.05, XLC: -0.25, XLK: -0.2 },
+    factors: {
+      SPY: -0.3,
+      TLT: 0.2,
+      GLD: 0.15,
+      XLU: 0.05,
+      XLC: -0.25,
+      XLK: -0.2,
+      XLI: -0.25,
+      XLY: -0.35,
+      XLV: -0.1,
+      XLE: -0.2,
+      XLB: -0.3,
+      XLP: -0.08,
+      XLRE: -0.25,
+      XLF: -0.3,
+    },
   },
-};
-
-// Approximate sector ETF mapping for common stocks
-const SECTOR_MAP: Record<string, string> = {
-  // Technology
-  AAPL: 'XLK',
-  MSFT: 'XLK',
-  NVDA: 'XLK',
-  AMD: 'XLK',
-  INTC: 'XLK',
-  AVGO: 'XLK',
-  ADBE: 'XLK',
-  CRM: 'XLK',
-  ORCL: 'XLK',
-  CSCO: 'XLK',
-  QCOM: 'XLK',
-  TXN: 'XLK',
-  // Communication
-  META: 'XLC',
-  GOOG: 'XLC',
-  GOOGL: 'XLC',
-  NFLX: 'XLC',
-  DIS: 'XLC',
-  TMUS: 'XLC',
-  // Consumer Discretionary
-  AMZN: 'XLY',
-  TSLA: 'XLY',
-  HD: 'XLY',
-  NKE: 'XLY',
-  MCD: 'XLY',
-  SBUX: 'XLY',
-  // Financials
-  JPM: 'XLF',
-  BAC: 'XLF',
-  GS: 'XLF',
-  MS: 'XLF',
-  WFC: 'XLF',
-  BRK: 'XLF',
-  // Healthcare
-  UNH: 'XLV',
-  JNJ: 'XLV',
-  PFE: 'XLV',
-  ABBV: 'XLV',
-  LLY: 'XLV',
-  MRK: 'XLV',
-  // Energy
-  XOM: 'XLE',
-  CVX: 'XLE',
-  COP: 'XLE',
-  SLB: 'XLE',
-  EOG: 'XLE',
-  // Utilities
-  NEE: 'XLU',
-  DUK: 'XLU',
-  SO: 'XLU',
-  AEP: 'XLU',
-  // Materials
-  LIN: 'XLB',
-  APD: 'XLB',
-  FCX: 'XLB',
-  // Industrials
-  CAT: 'XLI',
-  BA: 'XLI',
-  GE: 'XLI',
-  HON: 'XLI',
-  UNP: 'XLI',
-  // Real Estate
-  AMT: 'XLRE',
-  PLD: 'XLRE',
-  CCI: 'XLRE',
-  // Consumer Staples
-  PG: 'XLP',
-  KO: 'XLP',
-  PEP: 'XLP',
-  COST: 'XLP',
-  WMT: 'XLP',
 };
 
 export interface PositionImpact {
   ticker: string;
   shares: number;
   currentValue: number;
-  sectorETF: string;
-  estimatedReturn: number;
-  impactDollars: number;
-  impactPct: number;
+  /** The factor actually used, never a hidden broad-market fallback. */
+  scenarioFactor: string | null;
+  factorSource: 'user' | 'inferred' | 'market' | 'unmodeled';
+  modeled: boolean;
+  unmodeledReason: string | null;
+  estimatedReturn: number | null;
+  impactDollars: number | null;
+  impactPct: number | null;
 }
 
+type ScenarioPosition = {
+  ticker: string;
+  shares: number;
+  /** Historical cost is retained for pure unit tests and legacy callers. */
+  avgCost?: number;
+  /** Current marked value in the portfolio base currency. */
+  valueBase?: number | null;
+  scenarioExposure?: PositionScenarioExposure;
+};
+
 export function estimateImpact(
-  positions: { ticker: string; shares: number; avgCost: number }[],
+  positions: ScenarioPosition[],
   scenario: ScenarioConfig,
   defaultBeta: number = 1.0,
 ): {
   positions: PositionImpact[];
   totalImpact: number;
-  totalImpactPct: number;
+  /** Percentage of the modeled portion only; null means no position was modeled. */
+  totalImpactPct: number | null;
   portfolioValue: number;
+  modeledValue: number;
+  unmodeledValue: number;
+  coveragePct: number;
+  unmodeledTickers: string[];
 } {
-  const portfolioValue = positions.reduce((s, p) => s + p.shares * p.avgCost, 0);
+  const positionValue = (position: ScenarioPosition): number => {
+    if (position.valueBase !== undefined && position.valueBase !== null) return position.valueBase;
+    return position.shares * (position.avgCost ?? 0);
+  };
+  const portfolioValue = positions.reduce((sum, position) => sum + positionValue(position), 0);
   if (portfolioValue === 0)
-    return { positions: [], totalImpact: 0, totalImpactPct: 0, portfolioValue: 0 };
+    return {
+      positions: [],
+      totalImpact: 0,
+      totalImpactPct: null,
+      portfolioValue: 0,
+      modeledValue: 0,
+      unmodeledValue: 0,
+      coveragePct: 0,
+      unmodeledTickers: [],
+    };
 
   let totalImpact = 0;
+  let modeledValue = 0;
   const impacts: PositionImpact[] = [];
 
   for (const pos of positions) {
-    const value = pos.shares * pos.avgCost;
-    const sectorETF = SECTOR_MAP[pos.ticker] || 'SPY';
+    const value = positionValue(pos);
+    const resolved = resolveScenarioExposure(pos.ticker, pos.scenarioExposure);
 
-    // Determine the expected return for this position
-    let estimatedReturn: number;
+    let scenarioFactor = resolved.factor;
+    let factorSource: PositionImpact['factorSource'] = resolved.source;
+    let estimatedReturn: number | null = null;
+    let unmodeledReason = resolved.reason;
     if (pos.ticker in scenario.factors) {
-      // Direct factor for this ticker
       estimatedReturn = scenario.factors[pos.ticker];
-    } else if (sectorETF in scenario.factors) {
-      // Sector ETF factor
-      estimatedReturn = scenario.factors[sectorETF];
-    } else if ('SPY' in scenario.factors) {
-      // Fall back to broad market beta
-      estimatedReturn = scenario.factors.SPY * defaultBeta;
-    } else {
-      estimatedReturn = 0;
+      scenarioFactor = pos.ticker;
+      factorSource = resolved.source === 'unmodeled' ? 'inferred' : resolved.source;
+      unmodeledReason = null;
+    } else if (resolved.factor && resolved.factor in scenario.factors) {
+      estimatedReturn = scenario.factors[resolved.factor];
+      unmodeledReason = null;
+    } else if (resolved.factor && scenario.marketFactor !== undefined) {
+      estimatedReturn = scenario.marketFactor * defaultBeta;
+      scenarioFactor = 'MARKET';
+      factorSource = 'market';
+      unmodeledReason = null;
+    } else if (resolved.factor) {
+      unmodeledReason = `Scenario has no factor for ${resolved.factor} (${pos.ticker}).`;
     }
 
-    const impactDollars = +(value * estimatedReturn).toFixed(2);
-    const impactPct = +(estimatedReturn * 100).toFixed(2);
-
-    totalImpact += impactDollars;
+    const modeledReturn = estimatedReturn;
+    const modeled = modeledReturn !== null;
+    const impactDollars = modeledReturn === null ? null : +(value * modeledReturn).toFixed(2);
+    const impactPct = modeledReturn === null ? null : +(modeledReturn * 100).toFixed(2);
+    if (modeled) {
+      totalImpact += impactDollars as number;
+      modeledValue += value;
+    }
 
     impacts.push({
       ticker: pos.ticker,
       shares: pos.shares,
       currentValue: +value.toFixed(2),
-      sectorETF,
-      estimatedReturn: +estimatedReturn.toFixed(4),
+      scenarioFactor,
+      factorSource,
+      modeled,
+      unmodeledReason,
+      estimatedReturn: modeledReturn === null ? null : +modeledReturn.toFixed(4),
       impactDollars,
       impactPct,
     });
   }
 
-  impacts.sort((a, b) => a.impactDollars - b.impactDollars); // worst first
+  impacts.sort((a, b) => {
+    if (a.impactDollars === null) return 1;
+    if (b.impactDollars === null) return -1;
+    return a.impactDollars - b.impactDollars;
+  });
+  const unmodeledValue = portfolioValue - modeledValue;
 
   return {
     positions: impacts,
     totalImpact: +totalImpact.toFixed(2),
-    totalImpactPct: +((totalImpact / portfolioValue) * 100).toFixed(2),
+    totalImpactPct: modeledValue === 0 ? null : +((totalImpact / modeledValue) * 100).toFixed(2),
     portfolioValue: +portfolioValue.toFixed(2),
+    modeledValue: +modeledValue.toFixed(2),
+    unmodeledValue: +unmodeledValue.toFixed(2),
+    coveragePct: +((modeledValue / portfolioValue) * 100).toFixed(2),
+    unmodeledTickers: impacts.filter(impact => !impact.modeled).map(impact => impact.ticker),
   };
 }
 
@@ -245,10 +279,23 @@ export async function scenario(args: string[]) {
         'Example: --factors \'{"SPY":-0.2,"XLK":-0.15}\'',
       );
     }
+    const normalizedFactors: Record<string, number> = {};
+    for (const [rawFactor, rawReturn] of Object.entries(factors as Record<string, unknown>)) {
+      const factor = validateTicker(rawFactor, 'scenario factor');
+      if (typeof rawReturn !== 'number' || !Number.isFinite(rawReturn)) {
+        throw new FinstackError(
+          'Invalid scenario factor return',
+          undefined,
+          `${factor} must map to a finite fractional return`,
+          'Use a number such as -0.2 for -20%.',
+        );
+      }
+      normalizedFactors[factor] = rawReturn;
+    }
     config = {
       name: 'custom',
       description: 'Custom scenario',
-      factors: factors as Record<string, number>,
+      factors: normalizedFactors,
     };
   } else {
     config = SCENARIOS[scenarioName];
@@ -262,13 +309,30 @@ export async function scenario(args: string[]) {
     }
   }
 
-  const portfolio = readJSONSafe<any>(paths.PORTFOLIO_FILE, { positions: [] });
-  if (!portfolio.positions?.length) {
+  const portfolio = loadPortfolio();
+  if (!portfolio.positions.length) {
     console.log(JSON.stringify({ message: 'Empty portfolio. Add positions first.' }, null, 2));
     return;
   }
 
-  const result = estimateImpact(portfolio.positions, config);
+  const valuation = valuePortfolio(portfolio);
+  if (!valuation.complete) {
+    throw new FinstackError(
+      'Portfolio valuation is incomplete',
+      undefined,
+      `Missing base-currency conversion for: ${valuation.unvaluedTickers.join(', ')}`,
+      'Mark foreign-currency positions with --fx-rate before running scenarios.',
+    );
+  }
+  const result = estimateImpact(
+    valuation.positions.map(position => ({
+      ticker: position.ticker,
+      shares: position.shares,
+      valueBase: position.valueBase,
+      scenarioExposure: position.scenarioExposure,
+    })),
+    config,
+  );
 
   console.log(
     JSON.stringify(
@@ -276,6 +340,11 @@ export async function scenario(args: string[]) {
         scenario: config.name,
         description: config.description,
         factors: config.factors,
+        baseCurrency: portfolio.baseCurrency,
+        valuation: {
+          fullyMarked: valuation.fullyMarked,
+          costFallbackTickers: valuation.costFallbackTickers,
+        },
         ...result,
         disclaimer:
           'Based on sector-level estimates. Not a precise risk model. Directional reference only.',

@@ -200,13 +200,14 @@ finstack quote <ticker>                     Price snapshot
 finstack financials <ticker>                Financial data + ratios
 finstack scan [--source trending|news|all]  Signal scanning
 finstack screen "<filters>" [--preset P]    Stock screener
-finstack portfolio show|add|remove|init     Portfolio management
+finstack portfolio show|init|import|add|mark|exposure|remove
+                                            Portfolio management with explicit currencies, marks, and stress proxies
 finstack watchlist [add|remove|tag|untag]   Watchlist management
 finstack alerts [--due N] [--source S]      Check pending alerts
 finstack calendar [--range N]               Upcoming earnings calendar
 finstack regime list|add|update|alerts      Consensus assumptions
 finstack thesis list|check|kill|history     Thesis lifecycle
-finstack risk [size <ticker> <entry> <stop>] Risk + position sizing
+finstack risk [size <ticker> <entry> <stop>] Risk + position sizing with an explicit acknowledgement gate
 finstack alpha [--last N]                   Cognitive alpha
 finstack history <ticker> [--from --to]     Historical prices
 finstack earnings <ticker> [--upcoming]     Earnings data
@@ -219,6 +220,7 @@ finstack review [--period P]                Periodic review data
 finstack backtest [--thesis ID]             Thesis replay backtest
 finstack correlate [--period N]             Correlation matrix
 finstack scenario <name|custom>             Scenario analysis
+finstack desk [--no-open]                   Local decision workbench
 ```
 
 Every command above is also exposed as an [MCP](https://modelcontextprotocol.io)
@@ -244,7 +246,7 @@ finstack/
 │   ├── screen/SKILL.md
 │   └── review/SKILL.md
 ├── engine/src/              # Data engine (compiled Bun binary)
-│   ├── cli.ts               #   24 commands
+│   ├── cli.ts               #   25 commands
 │   ├── mcp/                  #   MCP stdio JSON-RPC server (server.ts)
 │   ├── commands/             #   quote, financials, scan, screen, portfolio,
 │   │                         #   watchlist, alerts, calendar, regime, thesis,
@@ -252,7 +254,8 @@ finstack/
 │   │                         #   keys, learn, report, review, backtest,
 │   │                         #   correlate, scenario
 │   ├── data/                 #   7 data sources + state stores
-│   └── report/               #   HTML templates + Chart.js configs
+│   ├── desk/                 #   authenticated local Mirror workbench
+│   └── report/               #   legacy generated research reports
 ├── bin/                      # Version check, session update, config
 ├── ARCHITECTURE.md           # Design decisions + data flow
 ├── CONTRIBUTING.md           # How to contribute
@@ -283,6 +286,7 @@ finstack maintains a cognitive model of YOU in `~/.finstack/`:
 ├── journal/          # Every decision, tracked by git
 ├── patterns/         # Behavioral patterns (exits tech early, ignores stops)
 ├── portfolio.json    # Current holdings + transaction history
+├── desk.json         # Local Desk discovery record (mode 0600)
 ├── shadow.json       # Shadow portfolio (disciplined you)
 ├── theses.json       # Active thesis register + falsification conditions
 ├── consensus.json    # Market assumptions + stress levels
@@ -296,6 +300,49 @@ finstack maintains a cognitive model of YOU in `~/.finstack/`:
 `git log ~/.finstack/journal/` is your investment decision history.
 The user who uses finstack for a year has a cognitive model no one else
 can replicate.
+
+## Portfolio Truth and Desk
+
+A position has an instrument currency, historical cost, and an optional
+explicit market mark with timestamp and source. Risk, scenarios, and Desk use
+the mark in the portfolio base currency; if a mark is missing, they label the
+cost-basis fallback instead of pretending it is live market data.
+
+Stress tests also declare their model coverage. A holding with an explicit
+scenario proxy (`portfolio exposure`) uses that proxy; documented common
+proxies are labelled as inferred. An unmodelled holding is excluded from the
+estimated dollar total and named alongside the coverage percentage — it is
+never silently treated as SPY. Set or clear a user proxy with:
+
+```bash
+finstack portfolio exposure TSM XLK --notes "Semiconductor beta proxy"
+finstack portfolio exposure TSM --clear
+```
+
+`risk size` returns `pass`, `requires_acknowledgement`, or `blocked`.
+Concentration, stale explicit marks, and cost-basis valuation all require a
+human acknowledgement before the tool can be used as a trade ticket.
+
+Use an import when the source is a broker snapshot — it creates an opening
+balance and deliberately writes no made-up transaction history:
+
+```bash
+finstack portfolio import --schema
+echo '<snapshot-json>' | finstack portfolio import
+finstack portfolio mark MSFT 505.06 --source Broker
+```
+
+`finstack desk` opens the local Desk. Its default Posture view makes three
+facts explicit: concentration limits, the age/source of the marks, and
+directional sector-level stress estimates with their modeled-capital coverage.
+Selecting a holding opens its
+pricing record and its contribution to each stress estimate. It shares
+`~/.finstack/` with the CLI and MCP server, lets the human record a
+source-backed mark, record one daily net-value mirror only after every holding
+is explicitly marked, or answer an agent’s bounded decision request. It binds
+only to `127.0.0.1`, exchanges the launch URL capability for an HttpOnly
+cookie, and makes no external network request. The implementation contract is
+in [DESK.md](DESK.md).
 
 ## Data Sources
 

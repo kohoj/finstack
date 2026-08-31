@@ -7,6 +7,7 @@ import { alpha } from './commands/alpha';
 import { backtest } from './commands/backtest';
 import { calendar } from './commands/calendar';
 import { correlate } from './commands/correlate';
+import { desk } from './commands/desk';
 import { earnings } from './commands/earnings';
 import { filing } from './commands/filing';
 import { financials } from './commands/financials';
@@ -54,6 +55,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   correlate,
   scenario,
   shadow,
+  desk,
 };
 
 function checkVersion() {
@@ -90,7 +92,7 @@ Commands:
   financials <ticker>                    Financial data and ratios
   scan [--source trending|news|all]      Multi-source signal scanning
   regime list|add|update|alerts          Consensus assumption register
-  portfolio show|add|remove|init         Portfolio management
+  portfolio show|init|import|add|mark|exposure|remove  Portfolio currencies, marks, and stress proxies
   keys set|list|remove                   API key management
   macro [series]                         FRED macro indicators
   filing <ticker>                        SEC EDGAR filings
@@ -111,7 +113,8 @@ Commands:
   review [--period P] [--from F --to T]  Periodic investment review
   backtest [--thesis ID] [--period N]    Thesis replay backtest
   correlate [--period N]                 Portfolio correlation matrix
-  scenario <name|custom>                 Scenario analysis
+  scenario <name|custom>                 Scenario analysis with explicit model coverage
+  desk [--no-open]                       Open the local decision workbench
 
 Data: ~/.finstack/   (override with FINSTACK_HOME env var)
 Cache: ~/.finstack/cache/

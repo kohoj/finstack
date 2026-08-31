@@ -179,16 +179,23 @@ Write output to `~/.finstack/journal/track-<date>.md` (global) or
 
 Git commit: `cd ~/.finstack && git add -A && git commit -m "track: <scope> — <key finding>"`
 
-## Step 3.5: Generate Visual Report
+## Step 3.5: Open the Decision Workbench
 
-After depositing, generate an HTML report for visual review:
+After depositing, open the local Desk. This is the visual client for the
+current shared state, not a one-off static report:
 
 ```
-$F report track --no-open
+$F desk
 ```
 
-Tell the user: "Visual report generated. Open ~/.finstack/reports/track-<date>.html
-in your browser for charts and allocation visualization."
+Tell the user that Desk opens on the Posture view: marked portfolio,
+concentration limits, mark freshness, and directional stress. Stress totals
+show their modeled-capital coverage; a named unmodelled holding needs an
+explicit `portfolio exposure <ticker> <factor>` proxy before a whole-book
+estimate is possible. If a holding is shown as a cost fallback, it is not a
+live mark; record a broker- or source-backed mark before treating allocation
+as current. A daily Mirror snapshot is deliberate: do not claim a performance
+series exists until the user records one from a fully marked portfolio.
 
 ## Natural Flow
 

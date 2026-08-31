@@ -1,30 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { loadPortfolio, type Transaction } from '../data/portfolio';
 import { loadShadow, type ShadowEntry, weightedFillPrice } from '../data/shadow';
 import { fetchHistoricalClose } from '../data/yahoo';
-import { paths } from '../paths';
+import { FinstackError } from '../errors';
 import { validatePositiveInt } from '../validation';
-
-interface Position {
-  ticker: string;
-  shares: number;
-  avgCost: number;
-  addedAt: string;
-}
-
-interface Transaction {
-  ticker: string;
-  action: 'buy' | 'sell';
-  shares: number;
-  price: number;
-  date: string;
-  reason: string | null;
-}
-
-interface Portfolio {
-  positions: Position[];
-  transactions: Transaction[];
-  updatedAt: string;
-}
 
 interface PositionAlpha {
   ticker: string;
@@ -89,17 +67,6 @@ export function categorizeDeviation(reason: string | null): string {
   return reason;
 }
 
-function loadPortfolio(): Portfolio {
-  if (!existsSync(paths.PORTFOLIO_FILE)) return { positions: [], transactions: [], updatedAt: '' };
-  try {
-    const data = JSON.parse(readFileSync(paths.PORTFOLIO_FILE, 'utf-8'));
-    if (!data.transactions) data.transactions = [];
-    return data as Portfolio;
-  } catch {
-    return { positions: [], transactions: [], updatedAt: '' };
-  }
-}
-
 /**
  * SPY total return as a fraction (0.085 = +8.5%) between two dates. Null when
  * either historical close is unavailable, so the benchmark is reported only when
@@ -121,6 +88,18 @@ export async function alpha(args: string[]) {
 
   const portfolio = loadPortfolio();
   const shadow = loadShadow();
+
+  const foreignTransaction = portfolio.transactions.find(
+    transaction => transaction.currency !== portfolio.baseCurrency,
+  );
+  if (foreignTransaction) {
+    throw new FinstackError(
+      'Multi-currency alpha is not yet supported',
+      undefined,
+      `Trade history includes ${foreignTransaction.currency}, but its dated FX conversion into ${portfolio.baseCurrency} was not recorded.`,
+      'Use the base-currency ledger for now; multi-currency realized-performance attribution is intentionally not estimated.',
+    );
+  }
 
   const sells = portfolio.transactions
     .map((t, index) => ({ tx: t, index }))
@@ -239,6 +218,7 @@ export async function alpha(args: string[]) {
       from: sells[0]?.tx.date,
       to: sells[sells.length - 1]?.tx.date,
     },
+    baseCurrency: portfolio.baseCurrency,
     real: { totalPL: +totalRealPL.toFixed(2) },
     shadow: { totalPL: +totalShadowPL.toFixed(2) },
     executionDrag: { dollars: +(totalRealPL - totalShadowPL).toFixed(2) },

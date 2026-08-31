@@ -132,14 +132,27 @@ Every action plan must include:
 1. Run `$F risk size <TICKER> <entry_price> <stop_price>` using the entry
    price and stop-loss from Steps 2-3.
 
-2. Read the `riskGate` field in the output. Present it to the user:
+   If the proposed trade is not in the portfolio base currency, pass
+   `--currency <ISO>` and `--fx-rate <base per ISO>`. Read the returned
+   `valuation` field: a cost fallback is historical accounting, not a live
+   mark. Do not present a precise concentration calculation as current until
+   its relevant positions have explicit source-backed marks.
 
-   - If `pass: true` with no warnings → proceed silently
-   - If `pass: true` with warnings → show warnings inline:
+2. Read `riskGate.status`, not only the legacy `pass` boolean. Present the
+   returned reasons to the user:
+
+   - If `status: "pass"` → proceed.
+   - If `status: "requires_acknowledgement"` → pause before emitting an
+     executable ticket. State the acknowledgement(s), offer a smaller or
+     rebalanced alternative, and call `await_decision` with accept, edit, or
+     ignore. Do not convert this state into a generic warning or infer an
+     override from silence.
      ```
-     ⚠️ RISK NOTE: Top 3 concentration would be 58% (limit: 60%)
+     ⚠️ ACKNOWLEDGEMENT REQUIRED
+       Top 3 concentration would be 63% (limit: 60%).
+       Accept this concentration, edit the size, or rebalance first.
      ```
-   - If `pass: false` → **BLOCK the action plan**:
+   - If `status: "blocked"` → **BLOCK the action plan**:
      ```
      ⛔ RISK GATE — BLOCKED
        Position concentration: NVDA would be 28% of portfolio (limit: 25%)
@@ -150,8 +163,9 @@ Every action plan must include:
        C) Rebalance — sell $X of [existing position] first
      ```
 
-3. If the user overrides, record the override reason. It will appear in
-   the transaction log and `/reflect` will surface it.
+3. If the user explicitly accepts an acknowledgement, retain the returned
+   decision and reason in the bounded decision flow. Never claim that an
+   acceptance executed a broker order.
 
 4. **Position sizing rule**: Always use the fixed-fractional method:
    ```
@@ -164,6 +178,16 @@ Every action plan must include:
 
 5. Also run `$F risk` (no args) to show the current portfolio risk
    dashboard. If any existing positions have no stop-loss, flag them.
+
+6. When the user needs to accept, edit, or ignore the final ticket in a
+   spatial UI, open `$F desk`. If the `await_decision` MCP tool is
+   available, use it with a stable requestId and the complete ticket context:
+   `ticker`, `direction`, `entry`, `stop`, `shares`,
+   `timeHorizon`, `currency`, `baseCurrency`, and
+   `fxRateToBase`. Allow accept, edit, and ignore. Wait for its returned
+   response rather than inferring consent from a page open. If it returns
+   edited shares or stop, rerun `$F risk size` with those values before
+   recording the shadow plan. A timeout means `pending`, not rejection.
 
 ## Step 3.7: Correlation Check
 

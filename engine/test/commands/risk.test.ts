@@ -66,6 +66,38 @@ describe('risk', () => {
     expect(gate.blocks.length).toBe(0);
   });
 
+  it('requires acknowledgement instead of calling a concentrated ticket a pass', () => {
+    const gate = evaluateRiskGate(
+      'SMALL',
+      10,
+      [
+        { ticker: 'MEGA', weight: 80 },
+        { ticker: 'MID', weight: 10 },
+      ],
+      1,
+      0,
+    );
+    expect(gate.status).toBe('requires_acknowledgement');
+    expect(gate.pass).toBe(false);
+    expect(gate.blocks).toEqual([]);
+    expect(gate.acknowledgements.join(' ')).toContain('Top 3 concentration');
+  });
+
+  it('requires acknowledgement when marks are older than the policy threshold', () => {
+    const gate = evaluateRiskGate('NVDA', 10, [], 1, 0, undefined, { oldestMarkAgeDays: 2 });
+    expect(gate.status).toBe('requires_acknowledgement');
+    expect(gate.acknowledgements.join(' ')).toContain('Oldest portfolio mark');
+  });
+
+  it('requires acknowledgement when portfolio weights still use historical cost', () => {
+    const gate = evaluateRiskGate('NVDA', 10, [], 1, 0, undefined, {
+      costFallbackTickers: ['MSFT'],
+    });
+    expect(gate.status).toBe('requires_acknowledgement');
+    expect(gate.acknowledgements.join(' ')).toContain('MSFT');
+    expect(gate.acknowledgements.join(' ')).toContain('historical cost');
+  });
+
   it('risk gate triggers drawdown circuit breaker', () => {
     const gate = evaluateRiskGate('NVDA', 10, [], 2, 18);
     expect(gate.pass).toBe(false);
@@ -88,6 +120,7 @@ describe('risk', () => {
 // never fired — the gate silently approved the concentration it exists to stop.
 
 import { afterAll, beforeEach } from 'bun:test';
+import { importPortfolioSnapshot } from '../../src/commands/portfolio';
 import { captureJSON, useTestHome } from '../helpers';
 
 const gateHome = useTestHome('risk-gate');
@@ -125,7 +158,7 @@ describe('risk size — post-trade weight', () => {
     expect(out.riskGate.blocks.join(' ')).toMatch(/limit: 25%/);
   });
 
-  it('allows a new position of the same size', async () => {
+  it('does not call a new ticket a pass while the resulting top three is concentrated', async () => {
     await seedConcentrated();
     const { risk } = await load();
 
@@ -134,17 +167,20 @@ describe('risk size — post-trade weight', () => {
 
     expect(out.sizing.weightPct).toBeLessThan(25);
     expect(out.sizing.addingToExisting).toBeUndefined();
-    expect(out.riskGate.pass).toBe(true);
+    expect(out.riskGate.status).toBe('requires_acknowledgement');
+    expect(out.riskGate.blocks).toEqual([]);
+    expect(out.riskGate.acknowledgements.join(' ')).toContain('Top 3 concentration');
   });
 
-  it('allows topping up a small position', async () => {
+  it('requires acknowledgement before topping up a small holding in a concentrated book', async () => {
     await seedConcentrated();
     const { risk } = await load();
 
     const out = await captureJSON(() => risk(['size', 'S1', '50', '45']));
 
     expect(out.sizing.addingToExisting).toBe(true);
-    expect(out.riskGate.pass).toBe(true);
+    expect(out.riskGate.status).toBe('requires_acknowledgement');
+    expect(out.riskGate.blocks).toEqual([]);
   });
 
   // The ticker being sized is passed to the gate as its post-trade weight, so
@@ -158,7 +194,7 @@ describe('risk size — post-trade weight', () => {
     const out = await captureJSON(() => risk(['size', 'ONLY', '219', '197']));
 
     // A single holding cannot exceed 100% of the portfolio.
-    const top3 = out.riskGate.warnings.find((w: string) => w.includes('Top 3'));
+    const top3 = out.riskGate.acknowledgements.find((w: string) => w.includes('Top 3'));
     if (top3) {
       const pct = Number(top3.match(/([\d.]+)%/)?.[1]);
       expect(pct).toBeLessThanOrEqual(100);
@@ -212,5 +248,41 @@ describe('risk size — user-specified shares', () => {
     const out = await captureJSON(() => risk(['size', 'TSLA', '100', '90', '--shares', '50']));
     expect(out.sizing.sizingMode).toBe('user-shares');
     expect(out.riskGate.blocks.join(' ')).not.toMatch(/Position risk at stop-loss/);
+  });
+});
+
+const markedHome = useTestHome('risk-marked-portfolio');
+
+describe('risk dashboard — marked valuation', () => {
+  beforeEach(() => markedHome.reset());
+  afterAll(() => markedHome.cleanup());
+
+  it('uses the recorded market mark rather than acquisition cost for concentration', async () => {
+    importPortfolioSnapshot({
+      baseCurrency: 'USD',
+      positions: [
+        {
+          ticker: 'MSFT',
+          shares: 10,
+          avgCost: 100,
+          currency: 'USD',
+          mark: { price: 500, asOf: '2026-08-28T00:00:00Z', source: 'broker' },
+        },
+        {
+          ticker: 'SPY',
+          shares: 10,
+          avgCost: 100,
+          currency: 'USD',
+          mark: { price: 100, asOf: '2026-08-28T00:00:00Z', source: 'broker' },
+        },
+      ],
+    });
+    const { risk } = await load();
+    const out = await captureJSON(() => risk([]));
+
+    expect(out.portfolioValue).toBe(6000);
+    expect(out.valuation.fullyMarked).toBe(true);
+    expect(out.concentration.top1).toEqual({ ticker: 'MSFT', weight: 83.3 });
+    expect(out.positionRisks.find((p: any) => p.ticker === 'MSFT').valuationBasis).toBe('mark');
   });
 });

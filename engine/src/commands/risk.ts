@@ -1,39 +1,31 @@
 import { computeDrawdown, loadEquity, recordEquity } from '../data/equity';
+import {
+  loadPortfolio,
+  normalizeCurrency,
+  type ValuedPosition,
+  valuePortfolio,
+} from '../data/portfolio';
 import { loadProfile, setRiskBudget } from '../data/profile';
+import { oldestMarkAgeDays, RISK_POLICY } from '../data/risk-policy';
 import { loadShadow, type ShadowEntry } from '../data/shadow';
 import { FinstackError } from '../errors';
-import { readJSONSafe } from '../fs';
-import { paths } from '../paths';
 import { validatePositiveNumber, validateStopVsEntry, validateTicker } from '../validation';
-
-interface Position {
-  ticker: string;
-  shares: number;
-  avgCost: number;
-  addedAt: string;
-}
-
-interface Portfolio {
-  positions: Position[];
-  transactions: {
-    ticker: string;
-    action: string;
-    shares: number;
-    price: number;
-    date: string;
-    reason: string | null;
-  }[];
-  updatedAt: string;
-}
 
 interface PositionRisk {
   ticker: string;
   shares: number;
+  currency: string;
   avgCost: number;
+  markPrice: number;
+  markSource: string | null;
+  markedAt: string | null;
+  valuationBasis: 'mark' | 'cost';
   marketValue: number;
+  marketValueBase: number;
   weight: number;
   stopLoss: number | null;
-  stopRiskDollars: number | null;
+  stopRiskNative: number | null;
+  stopRiskBase: number | null;
   stopRiskPct: number | null;
   unrealizedPL: number;
   unrealizedPLPct: number;
@@ -46,8 +38,11 @@ interface ConcentrationReport {
 }
 
 interface RiskGate {
+  /** `pass` means no block and no unresolved acknowledgement. */
   pass: boolean;
+  status: 'pass' | 'requires_acknowledgement' | 'blocked';
   warnings: string[];
+  acknowledgements: string[];
   blocks: string[];
 }
 
@@ -58,12 +53,15 @@ function parseFlag(args: string[], flag: string): string | undefined {
 
 export function calculateConcentration(
   positions: { ticker: string; weight: number }[],
-  limits = { single: 25, top3: 60 },
+  limits = {
+    single: RISK_POLICY.concentration.singlePositionPct,
+    top3: RISK_POLICY.concentration.topThreePct,
+  },
 ): ConcentrationReport {
   const sorted = [...positions].sort((a, b) => b.weight - a.weight);
   const top1 = sorted[0] || { ticker: '-', weight: 0 };
   const top3Tickers = sorted.slice(0, 3).map(p => p.ticker);
-  const top3Weight = sorted.slice(0, 3).reduce((s, p) => s + p.weight, 0);
+  const top3Weight = sorted.slice(0, 3).reduce((sum, position) => sum + position.weight, 0);
 
   const warnings: string[] = [];
   if (top1.weight > limits.single) {
@@ -107,12 +105,18 @@ export function evaluateRiskGate(
   positions: { ticker: string; weight: number }[],
   stopRiskPct: number | null,
   drawdownPct: number,
-  limits = { singlePosition: 25, top3: 60, positionRisk: 5, drawdown: 15 },
+  limits = {
+    singlePosition: RISK_POLICY.concentration.singlePositionPct,
+    top3: RISK_POLICY.concentration.topThreePct,
+    positionRisk: RISK_POLICY.maxPositionRiskPct,
+    drawdown: RISK_POLICY.circuitBreakerPct,
+  },
+  context: { oldestMarkAgeDays?: number | null; costFallbackTickers?: string[] } = {},
 ): RiskGate {
   const warnings: string[] = [];
+  const acknowledgements: string[] = [];
   const blocks: string[] = [];
 
-  // Concentration check (post-trade)
   if (newWeight > limits.singlePosition) {
     blocks.push(
       `${newTicker} would be ${newWeight.toFixed(1)}% of portfolio (limit: ${limits.singlePosition}%)`,
@@ -122,19 +126,19 @@ export function evaluateRiskGate(
   const sorted = [...positions, { ticker: newTicker, weight: newWeight }].sort(
     (a, b) => b.weight - a.weight,
   );
-  const top3 = sorted.slice(0, 3).reduce((s, p) => s + p.weight, 0);
+  const top3 = sorted.slice(0, 3).reduce((sum, position) => sum + position.weight, 0);
   if (top3 > limits.top3) {
-    warnings.push(`Top 3 concentration would be ${top3.toFixed(1)}% (limit: ${limits.top3}%)`);
+    acknowledgements.push(
+      `Top 3 concentration would be ${top3.toFixed(1)}% (limit: ${limits.top3}%). Explicit acknowledgement is required before this ticket can proceed.`,
+    );
   }
 
-  // Position risk check
   if (stopRiskPct !== null && stopRiskPct > limits.positionRisk) {
     blocks.push(
       `Position risk at stop-loss: ${stopRiskPct.toFixed(1)}% of portfolio (limit: ${limits.positionRisk}%)`,
     );
   }
 
-  // Drawdown circuit breaker
   if (drawdownPct > limits.drawdown) {
     blocks.push(
       `Portfolio drawdown: ${drawdownPct.toFixed(1)}% (circuit breaker: ${limits.drawdown}%). Stop. Breathe. Run /reflect before trading.`,
@@ -145,96 +149,114 @@ export function evaluateRiskGate(
     );
   }
 
-  return {
-    pass: blocks.length === 0,
-    warnings,
-    blocks,
-  };
+  if (
+    context.oldestMarkAgeDays !== undefined &&
+    context.oldestMarkAgeDays !== null &&
+    context.oldestMarkAgeDays > RISK_POLICY.markFreshnessDays
+  ) {
+    acknowledgements.push(
+      `Oldest portfolio mark is ${context.oldestMarkAgeDays} days old (review threshold: ${RISK_POLICY.markFreshnessDays} day). Refresh or explicitly acknowledge the dated valuation before this ticket can proceed.`,
+    );
+  }
+
+  if (context.costFallbackTickers?.length) {
+    acknowledgements.push(
+      `Portfolio values for ${context.costFallbackTickers.join(', ')} use historical cost, not an explicit market mark. Refresh or explicitly acknowledge this valuation before this ticket can proceed.`,
+    );
+  }
+
+  const status =
+    blocks.length > 0
+      ? 'blocked'
+      : acknowledgements.length > 0
+        ? 'requires_acknowledgement'
+        : 'pass';
+  return { pass: status === 'pass', status, warnings, acknowledgements, blocks };
 }
 
-function loadPortfolio(): Portfolio {
-  const data = readJSONSafe<Portfolio>(paths.PORTFOLIO_FILE, {
-    positions: [],
-    transactions: [],
-    updatedAt: '',
-  });
-  if (!data.transactions) data.transactions = [];
-  return data as Portfolio;
+function requireValuedPortfolio() {
+  const portfolio = loadPortfolio();
+  const valuation = valuePortfolio(portfolio);
+  if (valuation.unvaluedTickers.length > 0) {
+    throw new FinstackError(
+      'Portfolio valuation is incomplete',
+      undefined,
+      `Missing base-currency conversion for: ${valuation.unvaluedTickers.join(', ')}`,
+      'Mark foreign-currency positions with --fx-rate before sizing a trade.',
+    );
+  }
+  return { portfolio, valuation };
+}
+
+function valueByTicker(positions: ValuedPosition[], ticker: string): number {
+  return positions
+    .filter(position => position.ticker === ticker)
+    .reduce((sum, position) => sum + (position.valueBase ?? 0), 0);
 }
 
 export async function risk(args: string[]) {
   const sub = args[0];
 
-  // Subcommand: size — position sizing calculator
   if (sub === 'size') {
     const ticker = validateTicker(args[1]);
     const entry = validatePositiveNumber(args[2], 'entry price');
     const stop = validatePositiveNumber(args[3], 'stop price');
     validateStopVsEntry(entry, stop);
-
-    // Optional --shares N overrides budget-derived sizing with the user's
-    // actual intended share count. Without it, shares are back-solved from the
-    // risk budget, so stop-loss risk is always ≈ the budget and the gate's
-    // positionRisk block is tautological. With an explicit count the stop risk
-    // is whatever the user's size actually implies, so the block can fire.
     const sharesFlag = parseFlag(args, '--shares');
     const userShares =
       sharesFlag !== undefined ? validatePositiveNumber(sharesFlag, 'shares') : null;
 
-    const portfolio = loadPortfolio();
+    const { portfolio, valuation } = requireValuedPortfolio();
     const profile = loadProfile();
-    const portfolioValue = portfolio.positions.reduce((s, p) => s + p.shares * p.avgCost, 0);
-
+    const portfolioValue = valuation.totalValueBase;
     if (portfolioValue === 0) {
       throw new FinstackError(
         'Empty portfolio — cannot size a position against zero capital',
         undefined,
         'Position sizing is a percentage of total portfolio value',
-        'Add positions first: finstack portfolio add <ticker> <shares> <avgCost>',
+        'Import a portfolio snapshot or add positions first.',
       );
     }
 
-    const riskPerShare = Math.abs(entry - stop);
+    const currency = normalizeCurrency(
+      parseFlag(args, '--currency') || portfolio.baseCurrency,
+      'currency',
+    );
+    const fxRateToBase =
+      currency === portfolio.baseCurrency
+        ? 1
+        : validatePositiveNumber(
+            parseFlag(args, '--fx-rate'),
+            `FX rate (${portfolio.baseCurrency} per ${currency})`,
+          );
+    const entryBase = entry * fxRateToBase;
+    const stopBase = stop * fxRateToBase;
+    const riskPerShareBase = Math.abs(entryBase - stopBase);
     const sizing =
       userShares !== null
         ? {
             shares: userShares,
-            positionDollars: +(userShares * entry).toFixed(2),
-            riskDollars: +(userShares * riskPerShare).toFixed(2),
+            positionDollars: +(userShares * entryBase).toFixed(2),
+            riskDollars: +(userShares * riskPerShareBase).toFixed(2),
           }
-        : calculatePositionSize(portfolioValue, profile.riskBudgetPct, entry, stop);
+        : calculatePositionSize(portfolioValue, profile.riskBudgetPct, entryBase, stopBase);
 
-    // Post-trade weight of the *whole* position in this ticker, not just the
-    // addition. Adding to an existing holding was measured against the new
-    // shares alone, so topping up a position already at 80% reported 13.8% and
-    // the 25% single-position block never fired.
-    const existingValue = portfolio.positions
-      .filter(p => p.ticker === ticker)
-      .reduce((s, p) => s + p.shares * p.avgCost, 0);
-
+    const existingValue = valueByTicker(valuation.positions, ticker);
     const postTradeValue = portfolioValue + sizing.positionDollars;
     const weight =
       postTradeValue > 0 ? ((existingValue + sizing.positionDollars) / postTradeValue) * 100 : 0;
-
-    // Other holdings only. The ticker being sized is passed separately as its
-    // post-trade weight; including its pre-trade weight here would count it
-    // twice in the top-3 sum.
-    const existingWeights = portfolio.positions
-      .filter(p => p.ticker !== ticker)
-      .map(p => ({
-        ticker: p.ticker,
-        weight: ((p.shares * p.avgCost) / postTradeValue) * 100,
+    const existingWeights = valuation.positions
+      .filter(position => position.ticker !== ticker)
+      .map(position => ({
+        ticker: position.ticker,
+        weight: ((position.valueBase ?? 0) / postTradeValue) * 100,
       }));
-    // Real position risk at the stop: actual dollars lost if stopped out
-    // (shares · |entry−stop|, already computed as sizing.riskDollars) as a
-    // percentage of post-trade portfolio value. The gate's 4th argument is
-    // this stop-loss risk, NOT the risk *budget*. Passing riskBudgetPct here
-    // fed the gate the target (≤5, its own default budget of 2), so the
-    // positionRisk block could never fire. The dashboard path below already
-    // computes this correctly (stopRiskDollars / portfolioValue); size now
-    // matches it.
     const stopRiskPct = postTradeValue > 0 ? (sizing.riskDollars / postTradeValue) * 100 : 0;
-    const gate = evaluateRiskGate(ticker, weight, existingWeights, stopRiskPct, 0);
+    const oldestAgeDays = oldestMarkAgeDays(valuation.positions.map(position => position.markedAt));
+    const gate = evaluateRiskGate(ticker, weight, existingWeights, stopRiskPct, 0, undefined, {
+      oldestMarkAgeDays: oldestAgeDays,
+      costFallbackTickers: valuation.costFallbackTickers,
+    });
 
     console.log(
       JSON.stringify(
@@ -242,15 +264,27 @@ export async function risk(args: string[]) {
           ticker,
           entry,
           stop,
-          riskPerShare: +Math.abs(entry - stop).toFixed(2),
+          currency,
+          baseCurrency: portfolio.baseCurrency,
+          fxRateToBase,
+          entryBase: +entryBase.toFixed(4),
+          stopBase: +stopBase.toFixed(4),
+          riskPerShare: +Math.abs(entry - stop).toFixed(4),
+          riskPerShareBase: +riskPerShareBase.toFixed(4),
+          valuation: {
+            fullyMarked: valuation.fullyMarked,
+            costFallbackTickers: valuation.costFallbackTickers,
+          },
+          markFreshness: {
+            oldestAgeDays,
+            reviewThresholdDays: RISK_POLICY.markFreshnessDays,
+          },
           sizing: {
             shares: sizing.shares,
             positionDollars: sizing.positionDollars,
             riskDollars: sizing.riskDollars,
             riskBudgetPct: profile.riskBudgetPct,
             sizingMode: userShares !== null ? 'user-shares' : 'risk-budget',
-            // Weight of the combined position after the trade. When adding to
-            // an existing holding this exceeds the new tranche's own share.
             weightPct: +weight.toFixed(1),
             ...(existingValue > 0
               ? { addingToExisting: true, existingValue: +existingValue.toFixed(2) }
@@ -265,11 +299,6 @@ export async function risk(args: string[]) {
     return;
   }
 
-  // Subcommand: snapshot — record a mark-to-market equity value.
-  //
-  // The engine has no live prices, so the caller (skills layer, via $F quote)
-  // supplies the current portfolio value. This feeds the equity curve that the
-  // drawdown circuit breaker reads.
   if (sub === 'snapshot') {
     const value = validatePositiveNumber(args[1], 'portfolio value');
     const isoDate = new Date().toISOString().split('T')[0];
@@ -291,11 +320,6 @@ export async function risk(args: string[]) {
     return;
   }
 
-  // Subcommand: profile — view or set the risk profile.
-  //
-  // `risk profile` prints the current budget; `risk profile --risk-budget N`
-  // sets it. This is the only writer for profile.json — without it
-  // riskBudgetPct was pinned to its default with no way to change it.
   if (sub === 'profile') {
     const budgetFlag = parseFlag(args, '--risk-budget');
     if (budgetFlag !== undefined) {
@@ -321,18 +345,13 @@ export async function risk(args: string[]) {
     return;
   }
 
-  // Default: portfolio risk dashboard
-  const portfolio = loadPortfolio();
+  const { portfolio, valuation } = requireValuedPortfolio();
   const shadow = loadShadow();
   const profile = loadProfile();
-
   if (portfolio.positions.length === 0) {
     console.log(
       JSON.stringify(
-        {
-          message:
-            'Empty portfolio. Add positions first: finstack portfolio add <ticker> <shares> <avgCost>',
-        },
+        { message: 'Empty portfolio. Import a portfolio snapshot or add positions first.' },
         null,
         2,
       ),
@@ -340,97 +359,111 @@ export async function risk(args: string[]) {
     return;
   }
 
-  // Calculate portfolio value using avgCost (no live prices in engine — skills use $F quote)
-  const portfolioValue = portfolio.positions.reduce((s, p) => s + p.shares * p.avgCost, 0);
-
-  // Build position risks
-  const positionRisks: PositionRisk[] = portfolio.positions.map(pos => {
-    const marketValue = pos.shares * pos.avgCost;
-    const weight = (marketValue / portfolioValue) * 100;
-
-    // Find stop-loss from shadow entry
+  const portfolioValue = valuation.totalValueBase;
+  const positionRisks: PositionRisk[] = valuation.positions.map(valuationPosition => {
+    const position = portfolio.positions.find(item => item.ticker === valuationPosition.ticker);
+    if (!position || valuationPosition.valueBase === null) {
+      throw new FinstackError('Portfolio state changed during risk calculation');
+    }
+    const marketValueBase = valuationPosition.valueBase;
+    const weight = portfolioValue > 0 ? (marketValueBase / portfolioValue) * 100 : 0;
     const shadowEntry = shadow.entries.find(
-      (e: ShadowEntry) => e.ticker === pos.ticker && e.status === 'open',
+      (entry: ShadowEntry) => entry.ticker === position.ticker && entry.status === 'open',
     );
     const stopLoss = shadowEntry?.stopLoss?.price || null;
-    const stopRiskDollars = stopLoss !== null ? (pos.avgCost - stopLoss) * pos.shares : null;
-    const stopRiskPct = stopRiskDollars !== null ? (stopRiskDollars / portfolioValue) * 100 : null;
+    const stopRiskNative =
+      stopLoss === null ? null : Math.max(0, valuationPosition.price - stopLoss) * position.shares;
+    const stopRiskBase =
+      stopRiskNative === null ? null : stopRiskNative * (valuationPosition.fxRateToBase ?? 1);
+    const stopRiskPct =
+      stopRiskBase === null || portfolioValue === 0 ? null : (stopRiskBase / portfolioValue) * 100;
+    const unrealizedPL = (valuationPosition.price - position.avgCost) * position.shares;
 
     return {
-      ticker: pos.ticker,
-      shares: pos.shares,
-      avgCost: pos.avgCost,
-      marketValue: +marketValue.toFixed(2),
+      ticker: position.ticker,
+      shares: position.shares,
+      currency: position.currency,
+      avgCost: position.avgCost,
+      markPrice: valuationPosition.price,
+      markSource: valuationPosition.markSource,
+      markedAt: valuationPosition.markedAt,
+      valuationBasis: valuationPosition.priceSource,
+      marketValue: valuationPosition.nativeValue,
+      marketValueBase,
       weight: +weight.toFixed(1),
       stopLoss,
-      stopRiskDollars: stopRiskDollars !== null ? +stopRiskDollars.toFixed(2) : null,
-      stopRiskPct: stopRiskPct !== null ? +stopRiskPct.toFixed(1) : null,
-      unrealizedPL: 0,
-      unrealizedPLPct: 0,
+      stopRiskNative: stopRiskNative === null ? null : +stopRiskNative.toFixed(2),
+      stopRiskBase: stopRiskBase === null ? null : +stopRiskBase.toFixed(2),
+      stopRiskPct: stopRiskPct === null ? null : +stopRiskPct.toFixed(1),
+      unrealizedPL: +unrealizedPL.toFixed(2),
+      unrealizedPLPct: +((valuationPosition.price / position.avgCost - 1) * 100).toFixed(2),
     };
   });
 
-  // Concentration
   const concentration = calculateConcentration(
-    positionRisks.map(p => ({ ticker: p.ticker, weight: p.weight })),
+    positionRisks.map(position => ({ ticker: position.ticker, weight: position.weight })),
   );
-
-  // Positions without stop-loss
-  const noStop = positionRisks.filter(p => p.stopLoss === null);
-
-  // Positions over risk budget
+  const noStop = positionRisks.filter(position => position.stopLoss === null);
   const overBudget = positionRisks.filter(
-    p => p.stopRiskPct !== null && p.stopRiskPct > profile.riskBudgetPct * 2.5,
+    position => position.stopRiskPct !== null && position.stopRiskPct > profile.riskBudgetPct * 2.5,
   );
-
-  // Risk budget
   const riskBudgetDollars = portfolioValue * (profile.riskBudgetPct / 100);
-
-  // Drawdown circuit breaker. The engine has no live prices, so drawdown is
-  // read purely from the recorded equity curve, which the skills layer feeds
-  // with real marks via `risk snapshot <value>` (value from $F quote).
-  // Cost-basis portfolioValue is deliberately NOT injected here: it does not
-  // move with the market, so it can never express a drawdown and would only
-  // overwrite a real same-day mark. drawdownPct is 0 until the curve holds a
-  // peak above its latest value.
   const equity = loadEquity();
   const dd = computeDrawdown(equity);
-  const DRAWDOWN_LIMIT = 15;
+  const drawdownLimit = RISK_POLICY.circuitBreakerPct;
+  const oldestAgeDays = oldestMarkAgeDays(valuation.positions.map(position => position.markedAt));
   const drawdownAlert =
-    dd.drawdownPct > DRAWDOWN_LIMIT
-      ? `Portfolio drawdown ${dd.drawdownPct.toFixed(1)}% exceeds circuit breaker (${DRAWDOWN_LIMIT}%). Stop. Breathe. Run /reflect before trading.`
-      : dd.drawdownPct > DRAWDOWN_LIMIT * 0.7
-        ? `Portfolio drawdown ${dd.drawdownPct.toFixed(1)}% approaching circuit breaker (${DRAWDOWN_LIMIT}%)`
+    dd.drawdownPct > drawdownLimit
+      ? `Portfolio drawdown ${dd.drawdownPct.toFixed(1)}% exceeds circuit breaker (${drawdownLimit}%). Stop. Breathe. Run /reflect before trading.`
+      : dd.drawdownPct > drawdownLimit * 0.7
+        ? `Portfolio drawdown ${dd.drawdownPct.toFixed(1)}% approaching circuit breaker (${drawdownLimit}%)`
         : null;
 
-  const output = {
-    portfolioValue: +portfolioValue.toFixed(2),
-    positions: positionRisks.length,
-    riskBudget: {
-      pct: profile.riskBudgetPct,
-      maxLossPerTrade: +riskBudgetDollars.toFixed(2),
-    },
-    drawdown: {
-      peak: dd.peak,
-      peakDate: dd.peakDate,
-      current: dd.current,
-      drawdownPct: dd.drawdownPct,
-      circuitBreakerPct: DRAWDOWN_LIMIT,
-      tripped: dd.drawdownPct > DRAWDOWN_LIMIT,
-      hasHistory: equity.snapshots.length > 0,
-    },
-    concentration,
-    positionRisks: positionRisks.sort((a, b) => b.weight - a.weight),
-    alerts: {
-      noStopLoss: noStop.map(p => p.ticker),
-      overRiskBudget: overBudget.map(p => ({
-        ticker: p.ticker,
-        riskPct: p.stopRiskPct,
-      })),
-      concentrationWarnings: concentration.warnings,
-      ...(drawdownAlert ? { drawdown: drawdownAlert } : {}),
-    },
-  };
-
-  console.log(JSON.stringify(output, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        portfolioValue: +portfolioValue.toFixed(2),
+        baseCurrency: portfolio.baseCurrency,
+        positions: positionRisks.length,
+        valuation: {
+          fullyMarked: valuation.fullyMarked,
+          costFallbackTickers: valuation.costFallbackTickers,
+          unvaluedTickers: valuation.unvaluedTickers,
+        },
+        markFreshness: {
+          oldestAgeDays,
+          reviewThresholdDays: RISK_POLICY.markFreshnessDays,
+          requiresReview: oldestAgeDays !== null && oldestAgeDays > RISK_POLICY.markFreshnessDays,
+        },
+        riskBudget: { pct: profile.riskBudgetPct, maxLossPerTrade: +riskBudgetDollars.toFixed(2) },
+        drawdown: {
+          peak: dd.peak,
+          peakDate: dd.peakDate,
+          current: dd.current,
+          drawdownPct: dd.drawdownPct,
+          circuitBreakerPct: drawdownLimit,
+          tripped: dd.drawdownPct > drawdownLimit,
+          hasHistory: equity.snapshots.length > 0,
+        },
+        concentration,
+        positionRisks: positionRisks.sort((a, b) => b.weight - a.weight),
+        alerts: {
+          noStopLoss: noStop.map(position => position.ticker),
+          overRiskBudget: overBudget.map(position => ({
+            ticker: position.ticker,
+            riskPct: position.stopRiskPct,
+          })),
+          concentrationWarnings: concentration.warnings,
+          ...(valuation.costFallbackTickers.length > 0
+            ? {
+                staleValuation: `Cost-basis fallback for: ${valuation.costFallbackTickers.join(', ')}. Record a mark before relying on this risk view.`,
+              }
+            : {}),
+          ...(drawdownAlert ? { drawdown: drawdownAlert } : {}),
+        },
+      },
+      null,
+      2,
+    ),
+  );
 }

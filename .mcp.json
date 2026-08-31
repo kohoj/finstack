@@ -3,6 +3,7 @@
     "finstack-data": {
       "command": "./engine/dist/finstack",
       "args": ["mcp-server"],
+      "tool_timeout_sec": 86400,
       "env": {
         "FINSTACK_HOME": "${PLUGIN_DATA}"
       }

@@ -20,6 +20,11 @@ async function loadScan() {
   return mod.scan;
 }
 
+async function selectNews(query: string, items: unknown[]) {
+  const mod = await import('../../src/commands/scan');
+  return mod.selectTimelyRelevantNews(query, items as any[], Date.parse('2026-09-01T00:00:00Z'));
+}
+
 const trendingBody = {
   finance: {
     result: [{ quotes: [{ symbol: 'NVDA' }, { symbol: 'TSLA' }, { symbol: 'AAPL' }] }],
@@ -122,6 +127,38 @@ describe('source selection', () => {
     const out = await captureJSON(() => scan(['--source', 'trending']));
 
     expect(out.signals[0].items).toHaveLength(10);
+  });
+});
+
+describe('news quality boundary', () => {
+  it('does not promote FedEx into a Federal Reserve signal', async () => {
+    const items = await selectNews('fed', [
+      {
+        title: 'FedEx delivers pets after a storm',
+        publisher: 'Newswire',
+        link: 'https://example.test/fedex',
+        providerPublishTime: Date.parse('2026-08-31T00:00:00Z') / 1000,
+      },
+      {
+        title: 'Fed Chairman discusses inflation and interest rates',
+        publisher: 'Reuters',
+        link: 'https://example.test/fed',
+        providerPublishTime: Date.parse('2026-08-31T00:00:00Z') / 1000,
+      },
+    ]);
+    expect(items).toHaveLength(1);
+    expect(items[0].title).toContain('Fed Chairman');
+  });
+
+  it('rejects stale or undated news instead of calling it a current signal', async () => {
+    const items = await selectNews('earnings', [
+      {
+        title: 'Company earnings beat expectations',
+        providerPublishTime: Date.parse('2026-08-20T00:00:00Z') / 1000,
+      },
+      { title: 'Company earnings beat expectations' },
+    ]);
+    expect(items).toEqual([]);
   });
 });
 

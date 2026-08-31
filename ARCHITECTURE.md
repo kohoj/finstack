@@ -125,7 +125,7 @@ each one degrades.
 **Source**: `engine/src/` (TypeScript compiled with Bun)  
 **Purpose**: Deterministic data operations — fetch, parse, cache, validate
 
-The engine is a **standalone executable** built via `bun build --compile`. Zero dependencies at runtime. The CLI dispatches to 24 commands:
+The engine is a **standalone executable** built via `bun build --compile`. Zero dependencies at runtime. The CLI dispatches to 25 commands:
 
 ```typescript
 // engine/src/cli.ts
@@ -137,7 +137,7 @@ const commands = {
   // Analysis — computed from state and market data
   risk, alpha, correlate, scenario, backtest, screen,
   // Reporting
-  alerts, report, review,
+  alerts, report, review, desk,
 };
 ```
 
@@ -193,7 +193,7 @@ description of what is asserted.
 The plugin declares an MCP (Model Context Protocol) server so a host can call
 the engine directly as tools, without the skills layer. `mcp-server` speaks
 JSON-RPC 2.0 over stdio — newline-delimited messages on stdin/stdout — and
-exposes every one of the 24 commands as a tool. It is dispatched outside the
+exposes every one of the 25 commands as a tool. It is dispatched outside the
 command table (it is a transport, not an analytical command) and never appears
 in its own tool list.
 
@@ -207,13 +207,40 @@ and captures the child's stdout as the tool result. Two globals force this:
    In the server process, stdin **is** the JSON-RPC transport.
 
 Re-invoking as a child isolates both globals and runs the exact CLI code path,
-so a tool can never diverge from the command a human would run. The two
-composing commands expose a `document` object input that the bridge pipes to
-the child's stdin; every other tool takes only an `args` string array.
+so a tool can never diverge from the command a human would run. The composing
+commands expose a `document` object input that the bridge pipes to the
+child's stdin; every other ordinary command takes only an `args` string
+array.
+
+`desk`, `desk_open`, and `await_decision` are intentionally direct MCP tools
+rather than child commands: a local server and a waiting human-decision promise
+must live in the same MCP process. They are the only exception, explicitly
+tested, and never write protocol traffic to stdout.
 
 A command failure (exit 1) is returned as a tool result with `isError: true`
 carrying the structured `FinstackError` JSON — the server loop stays alive.
 `serverInfo.version` is pinned to `VERSION` and asserted by `check:docs`.
+
+### Desk — Local Workbench
+
+`finstack desk` is the second client of the engine: a local workbench for
+the interaction shapes that a conversation cannot make comfortable. It shares
+the same files as CLI and MCP. The central Posture view is a mirror of real
+positions, explicit marks, concentration limits, mark freshness, and
+directional sector-level stress. Every stress estimate carries modeled-capital
+coverage and names unmodelled holdings; it must never substitute a broad-market
+proxy without an explicit scenario contract. Selecting a holding opens its
+source-backed pricing record. A daily net-value snapshot is an explicit human
+action and is rejected until every position is marked. Desk is not a second
+market terminal or a generated static report.
+
+The server binds to `127.0.0.1` only and writes its discovery record to
+`desk.json` with mode 0600. A per-launch URL capability is exchanged for a
+signed, HttpOnly, SameSite=Strict cookie; every route also validates the exact
+Host and applies fail-closed CSRF checks on writes. Server-sent events project
+state changes and a bounded `await_decision` MCP tool resolves a human choice
+back into the waiting agent turn. [DESK.md](DESK.md) is the design baseline
+and phased product contract.
 
 ### Skills
 

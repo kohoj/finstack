@@ -109,11 +109,28 @@ describe('tools/list', () => {
     expect(names).toContain('quote');
     expect(names).toContain('thesis');
     expect(names).not.toContain('mcp-server');
-    expect(names.length).toBe(24);
+    expect(names).toContain('desk');
+    expect(names).toContain('desk_open');
+    expect(names).toContain('await_decision');
+    expect(names.length).toBe(27);
   });
 });
 
 describe('tools/call', () => {
+  it('opens the Desk in-process rather than spawning a never-ending child command', async () => {
+    const res = await session.request({
+      jsonrpc: '2.0',
+      id: 11,
+      method: 'tools/call',
+      params: { name: 'desk', arguments: {} },
+    });
+    expect(res.result.isError).toBe(false);
+    const desk = JSON.parse(res.result.content[0].text);
+    expect(desk.browserHandoff.url).toContain('http://127.0.0.1:');
+    const exchange = await fetch(desk.browserHandoff.url, { redirect: 'manual' });
+    expect(exchange.status).toBe(302);
+  });
+
   it('runs a command and returns its stdout as text content', async () => {
     // portfolio init writes a fresh, network-free state file — a deterministic
     // command to prove the child actually ran and its stdout came back.

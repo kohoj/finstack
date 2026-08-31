@@ -2,11 +2,10 @@
 //
 // Equity-curve snapshots, high-water mark, and drawdown.
 //
-// The engine has no live prices — positions carry avgCost, not market value —
-// so it cannot compute portfolio value on its own (see the "no live prices in
-// engine" note in risk.ts). The drawdown circuit breaker therefore needs the
-// caller to supply the current mark-to-market value, which the skills layer
-// obtains via `$F quote`. This module owns the resulting time series.
+// Positions may carry explicit marks, but an equity curve is a dated
+// high-water-mark series, not a by-product of the latest portfolio snapshot.
+// The drawdown circuit breaker therefore records an explicit current
+// mark-to-market portfolio value. This module owns that resulting time series.
 //
 // Drawdown is peak-to-current. Peak and current pull in opposite directions —
 // peak wants the running maximum, current wants the latest mark — so they are

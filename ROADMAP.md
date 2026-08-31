@@ -14,6 +14,13 @@ that, and no amount of internal testing produces it.
 
 ## Next
 
+**Desk — the second client.** A local web workbench served by the engine
+process itself: the agent writes state through MCP tools, the human answers
+decisions (position sizing, verdict confidence) and triages signals directly
+in the browser, and both share the same `~/.finstack/` files. Full design
+baseline, validated by five research tracks, lives in [DESK.md](DESK.md).
+Phase 1 is the decision bridge plus the `/act` ticket, end to end.
+
 **Thesis condition auto-resolution.** Earnings conditions carry a metric, an
 operator, a threshold, and a resolve-by date — everything needed to check them
 against reported results automatically. Today `/sense` surfaces them for human

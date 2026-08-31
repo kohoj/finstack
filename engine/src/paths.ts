@@ -67,4 +67,8 @@ export const paths = {
   get EQUITY_FILE(): string {
     return join(home(), 'equity.json');
   },
+  /** Local Desk discovery record. Mode 0600: it contains a launch capability. */
+  get DESK_FILE(): string {
+    return join(home(), 'desk.json');
+  },
 } as const;

@@ -12,7 +12,8 @@
 import { describe, expect, it } from 'bun:test';
 import { _internal, runMcpServer, SERVER_VERSION } from '../../src/mcp/server';
 
-const { buildTool, DESCRIPTIONS, STDIN_COMMANDS } = _internal;
+const { buildAwaitDecisionTool, buildDeskOpenTool, buildTool, DESCRIPTIONS, STDIN_COMMANDS } =
+  _internal;
 
 // The command table cli.ts injects. Kept here as a literal so a divergence
 // between this and the real registry surfaces as a failing description check.
@@ -41,6 +42,7 @@ const COMMANDS = [
   'correlate',
   'scenario',
   'shadow',
+  'desk',
 ];
 
 describe('tool construction', () => {
@@ -61,14 +63,26 @@ describe('tool construction', () => {
       const hasDocument = 'document' in props;
       expect(hasDocument).toBe(STDIN_COMMANDS.has(name));
     }
-    // The composing commands are exactly thesis and shadow.
-    expect([...STDIN_COMMANDS].sort()).toEqual(['shadow', 'thesis']);
+    // These commands compose a JSON document on stdin.
+    expect([...STDIN_COMMANDS].sort()).toEqual(['portfolio', 'shadow', 'thesis']);
   });
 
   it('names no description without a matching command', () => {
     for (const name of Object.keys(DESCRIPTIONS)) {
       expect(COMMANDS).toContain(name);
     }
+  });
+});
+
+describe('interactive Desk bridge', () => {
+  it('exposes a dedicated Desk-opening tool for hosts with a visible panel action', () => {
+    expect(buildDeskOpenTool().name).toBe('desk_open');
+  });
+
+  it('exposes one explicit, bounded human-decision tool', () => {
+    const tool = buildAwaitDecisionTool();
+    expect(tool.name).toBe('await_decision');
+    expect((tool.inputSchema as any).required).toEqual(['description']);
   });
 });
 

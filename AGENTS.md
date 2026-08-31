@@ -36,6 +36,39 @@ That location is outside the plugin directory on purpose: the install path
 contains the version, so an upgrade would orphan the binary, and a read-only
 cache would fail the write.
 
+## Desk Workbench
+
+`finstack desk` starts the local Mirror workbench. For an implementation or
+security check, use `finstack desk --no-open` and the returned local URL;
+never point it at a non-loopback interface. Desk requires Bun 1.3.14 or newer
+and shares `~/.finstack/` with CLI and MCP.
+
+The Desk launch URL is a one-time capability. Do not log, persist, copy into a
+journal, or expose it through a remote service. Every Desk route must retain
+exact Host validation, authenticated cookie or Bearer verification,
+fail-closed CSRF protection for mutations, a strict no-CDN CSP, and
+`Cache-Control: no-store`. Do not add CORS as a convenience workaround.
+
+`await_decision` is a bounded bridge from an MCP tool call to a human Desk
+choice. Reuse the same requestId on retry; `pending` means no decision yet,
+not a rejection. The agent, not the browser, remains responsible for
+recomputing risk after edits and sealing any accepted action into
+`shadow.json`.
+
+Desk may record a daily mirror snapshot only after the entire portfolio has
+explicit marks and required FX. It must remain an explicit human action:
+never synthesize a performance history by marking positions or opening Desk.
+
+Portfolio risk policy is centralized in `engine/src/data/risk-policy.ts`.
+`riskGate.status` is a three-state contract: `pass`,
+`requires_acknowledgement`, or `blocked`; do not collapse an acknowledgement
+requirement into a warning. Cost-basis valuation and stale marks require an
+acknowledgement before a ticket can proceed. Scenario exposure is centralized in
+`engine/src/data/scenario-exposure.ts`: stored user proxies are explicit,
+documented inferred proxies remain labelled, and unknown holdings are
+unmodelled. Stress totals must show coverage and must never silently fall back
+to SPY or another broad-market factor.
+
 ## Quick Answers
 
 For simple questions, call the engine directly rather than running a full

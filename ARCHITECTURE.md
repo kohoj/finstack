@@ -188,7 +188,12 @@ description of what is asserted.
 
 **Command**: `finstack mcp-server`  
 **Source**: `engine/src/mcp/server.ts`  
-**Registration**: `.mcp.json` → `finstack-data` server → `["mcp-server"]`
+**Registration**: `.mcp.json` → `bin/finstack-runtime` → `["mcp-server"]`
+
+The launcher is the distribution boundary: it builds the platform-specific
+binary from the installed source only when the binary is absent or older than
+`engine/src/`, then `exec`s it. Lifecycle hooks do the same build eagerly, but
+the launcher preserves a working MCP server when a host skips optional hooks.
 
 The plugin declares an MCP (Model Context Protocol) server so a host can call
 the engine directly as tools, without the skills layer. `mcp-server` speaks

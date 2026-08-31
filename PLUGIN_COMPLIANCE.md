@@ -1,6 +1,6 @@
 # finstack: OpenAI Codex Plugin 合规性报告
 
-**版本**: v0.7.5
+**版本**: v0.7.6
 
 **日期**: 2026-08-26
 
@@ -27,9 +27,9 @@ finstack 已完成向 OpenAI Codex Plugin 规范的完整迁移，所有 P0-P4 �
 
 ### P2（用户体验）— 全部完成 ✅
 
-- ✅ **Lifecycle hooks**: `hooks/hooks.json` 已创建
-  - onInstall: 验证 Bun + 编译引擎（带进度提示 ⏳）
-  - onUpgrade: 源码变更时重新编译
+- ✅ **Lifecycle hooks + MCP bootstrap**: `hooks/hooks.json` 预构建；`bin/finstack-runtime` 是 MCP 的独立启动入口
+  - onInstall/onUpgrade: 在插件根目录编译引擎
+  - 首次 MCP 调用: 若 hook 未运行，启动入口从已安装源码重建一次
 - ✅ **隐私政策**: privacyPolicyURL → SECURITY.md
 - ✅ **服务条款**: termsOfServiceURL → LICENSE
 
@@ -71,7 +71,7 @@ finstack 已完成向 OpenAI Codex Plugin 规范的完整迁移，所有 P0-P4 �
 finstack/
 ├── .codex-plugin/
 │   └── plugin.json          ✅ 完整字段
-├── .mcp.json                ✅ MCP 占位配置
+├── .mcp.json                ✅ MCP 注册（经 `bin/finstack-runtime` 保证可执行）
 ├── hooks/
 │   └── hooks.json           ✅ 生命周期钩子
 ├── assets/

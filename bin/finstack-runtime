@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Keep the distributed plugin runnable even when a host has not executed its
+# optional lifecycle hooks. The compiled engine is deliberately not committed:
+# it is platform-specific and reproducibly built from the installed sources.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ENGINE="$ROOT/engine/dist/finstack"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "finstack requires Bun 1.3.14+ to build its local engine. Install Bun, then retry." >&2
+  exit 1
+fi
+
+if [ ! -x "$ENGINE" ] || find "$ROOT/engine/src" "$ROOT/package.json" -type f -newer "$ENGINE" -print -quit | grep -q .; then
+  mkdir -p "$(dirname "$ENGINE")"
+  bun build --compile "$ROOT/engine/src/cli.ts" --outfile "$ENGINE" >&2
+fi
+
+exec "$ENGINE" "$@"

@@ -12,14 +12,14 @@
         {
           "name": "build-engine",
           "command": "bash",
-          "args": ["-c", "cd engine && echo '⏳ Building finstack engine...' && bun install --frozen-lockfile && bun run build"]
+          "args": ["-c", "echo '⏳ Building finstack engine...' && bun run build"]
         }
       ]
     },
     "onUpgrade": {
       "description": "Rebuild engine if source changed since last version",
       "command": "bash",
-      "args": ["-c", "cd engine && bun run build"]
+      "args": ["-c", "bun run build"]
     }
   }
 }

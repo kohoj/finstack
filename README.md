@@ -224,8 +224,9 @@ finstack desk [--no-open]                   Local decision workbench
 ```
 
 Every command above is also exposed as an [MCP](https://modelcontextprotocol.io)
-tool. `.mcp.json` registers `finstack mcp-server`, a zero-dependency stdio
-JSON-RPC server, so a host can call the engine directly as tools. See
+tool. `.mcp.json` registers a small local bootstrap that builds the
+platform-specific engine from the installed sources when needed, then starts
+`finstack mcp-server` as a zero-dependency stdio JSON-RPC server. See
 [ARCHITECTURE.md](ARCHITECTURE.md#mcp-server).
 
 ## Architecture

@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "finstack-data": {
-      "command": "./engine/dist/finstack",
+      "command": "./bin/finstack-runtime",
       "args": ["mcp-server"],
       "tool_timeout_sec": 86400,
       "env": {

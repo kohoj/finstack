@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6] — 2026-09-01
+
+### Fixed
+
+**Fresh plugin installs could expose a missing MCP executable.** The compiled
+engine is intentionally excluded from source distribution, while the lifecycle
+hook ran from `engine/` where the root build script was unavailable. The MCP
+entry now runs through a small, source-validated bootstrap and the hooks build
+from the repository root. A new install therefore works whether or not the
+host executes lifecycle hooks.
+
 ## [0.7.5] — 2026-08-26
 
 ### Changed

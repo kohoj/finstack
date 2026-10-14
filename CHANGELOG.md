@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.7] — 2026-10-15
+
+### Fixed
+
+**The installed MCP server failed outside the plugin directory.** Its command
+now resolves through `${PLUGIN_ROOT}` rather than the session's working
+directory. A regression test launches a source-only package from another
+directory, including paths with spaces, and checks MCP initialization, tool
+discovery, a tool call, and reuse of the compiled engine.
+
+**Codex rejected the plugin's hooks configuration.** Removed the unsupported
+`onInstall`/`onUpgrade` hooks and schema field. The MCP launcher already owns
+on-demand compilation, so startup no longer relies on installation hooks.
+Packaging documentation now describes the actual startup prerequisites and
+validation boundaries.
+
 ## [0.7.6] — 2026-09-01
 
 ### Fixed

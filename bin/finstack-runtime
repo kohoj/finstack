@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Keep the distributed plugin runnable even when a host has not executed its
-# optional lifecycle hooks. The compiled engine is deliberately not committed:
-# it is platform-specific and reproducibly built from the installed sources.
+# Build the distributed MCP engine from the installed sources when needed.
+# The compiled engine is platform-specific and deliberately not committed.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENGINE="$ROOT/engine/dist/finstack"
 

@@ -108,6 +108,21 @@ The distribution catalog lives in
 [`kohoj/agent-plugins`](https://github.com/kohoj/agent-plugins), separate from
 the plugin source.
 
+## Plugin Packaging
+
+The MCP manifest must resolve its executable through `${PLUGIN_ROOT}`. A
+session's working directory belongs to the user's project, so `./bin/...`
+does not locate an installed plugin. `bin/finstack-runtime` owns MCP engine
+compilation; do not duplicate it in installation hooks.
+
+The gate includes a source-only package test that runs from an unrelated
+directory. Before distributing a plugin change, also install the candidate in
+Codex and verify `/mcp` and `/warnings`: the engine tests alone do not validate
+the host's manifest and hooks parser.
+
+Keep `VERSION`, `package.json`, `.codex-plugin/plugin.json`, and
+`engine/src/mcp/server.ts` synchronized when changing the distributed version.
+
 ## Adding a New Engine Command
 
 1. Create `engine/src/commands/{name}.ts`

@@ -139,8 +139,13 @@ codex plugin marketplace add kohoj/agent-plugins
 codex plugin add finstack@kohoj-agent-plugins
 ```
 
-That's it. The engine compiles itself on first use — installing
-[Bun](https://bun.sh) if you don't have it — and lands in `~/.finstack/bin/`.
+The bundled MCP server needs [Bun](https://bun.sh) 1.3.14 or newer on `PATH`.
+Its launcher compiles the engine from the installed sources when needed and
+works from any project directory. No installation hooks are required.
+
+Skills also prepare their engine on first use, in the writable plugin data
+directory (`PLUGIN_DATA`, or `~/.finstack` when running without a plugin host).
+See [plugin packaging](PLUGIN_COMPLIANCE.md) for the startup contract.
 
 ### Quick Start
 
@@ -167,9 +172,9 @@ git clone https://github.com/kohoj/finstack.git
 cd finstack && ./setup
 ```
 
-`./setup` prepares `~/.finstack` and builds the engine ahead of time. The
-plugin install above does the same thing lazily, so this is only for
-contributors or anyone who would rather not wait during their first question.
+`./setup` prepares `~/.finstack` and builds the engine ahead of time. The plugin
+builds its engines lazily, so this is only for contributors or anyone who would
+rather not wait during their first question.
 
 ### Unlock More Data Sources
 

@@ -8,9 +8,11 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { emptyPortfolio } from '../../src/data/portfolio';
 
 const ROOT = join(import.meta.dir, '..', '..', '..');
 let sandbox: string;
@@ -23,6 +25,8 @@ beforeAll(() => {
   pluginRoot = join(sandbox, 'plugin with spaces');
   workspace = join(sandbox, 'unrelated workspace');
   dataRoot = join(sandbox, 'plugin data');
+  mkdirSync(dataRoot, { recursive: true });
+  writeFileSync(join(dataRoot, 'portfolio.json'), JSON.stringify(emptyPortfolio('EUR')));
   mkdirSync(workspace, { recursive: true });
   mkdirSync(join(pluginRoot, 'bin'), { recursive: true });
   cpSync(join(ROOT, 'engine', 'src'), join(pluginRoot, 'engine', 'src'), { recursive: true });
@@ -37,19 +41,12 @@ async function launch(): Promise<any[]> {
   const server = JSON.parse(readFileSync(join(pluginRoot, '.mcp.json'), 'utf-8')).mcpServers[
     'finstack-data'
   ];
-  const expand = (value: string) =>
-    value
-      .replaceAll(`\${PLUGIN_ROOT}`, () => pluginRoot)
-      .replaceAll(`\${PLUGIN_DATA}`, () => dataRoot);
-  const env = Object.fromEntries(
-    Object.entries(server.env as Record<string, string>).map(([key, value]) => [
-      key,
-      expand(value),
-    ]),
-  );
-  const proc = Bun.spawn([expand(server.command), ...server.args], {
-    cwd: workspace,
-    env: { ...process.env, ...env },
+  // Codex resolves a declared relative cwd against the plugin root. With no
+  // cwd, commands use the session workspace; native manifests do not expand
+  // placeholders in command, args, or env.
+  const proc = Bun.spawn([server.command, ...server.args], {
+    cwd: server.cwd ? resolve(pluginRoot, server.cwd) : workspace,
+    env: { ...process.env, ...server.env, PLUGIN_DATA: dataRoot },
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -97,7 +94,9 @@ it('boots a source-only plugin from another cwd and reuses the built engine', as
   expect(tools.map((tool: any) => tool.name)).toContain('portfolio');
   const call = responses.find(response => response.id === 3).result;
   expect(call.isError).toBe(false);
-  expect(JSON.parse(call.content[0].text).positions).toEqual([]);
+  const portfolio = JSON.parse(call.content[0].text);
+  expect(portfolio.positions).toEqual([]);
+  expect(portfolio.baseCurrency).toBe('EUR');
   expect(existsSync(engine)).toBe(true);
 
   const builtAt = statSync(engine).mtimeMs;

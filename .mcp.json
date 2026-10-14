@@ -1,12 +1,10 @@
 {
   "mcpServers": {
     "finstack-data": {
-      "command": "${PLUGIN_ROOT}/bin/finstack-runtime",
+      "command": "./bin/finstack-runtime",
       "args": ["mcp-server"],
-      "tool_timeout_sec": 86400,
-      "env": {
-        "FINSTACK_HOME": "${PLUGIN_DATA}"
-      }
+      "cwd": ".",
+      "tool_timeout_sec": 86400
     }
   }
 }

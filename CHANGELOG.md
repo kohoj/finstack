@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.8] — 2026-10-15
+
+### Fixed
+
+**Native Codex MCP manifests do not expand plugin placeholders.** The 0.7.7
+command still failed in the actual host. Set the native manifest's `cwd` to
+`.` so Codex anchors the relative executable to the installed plugin root.
+Remove the literal `${PLUGIN_DATA}` environment value; the launcher now maps
+a host-provided data directory to `FINSTACK_HOME`, otherwise preserving the
+engine's configured or default data directory. The existing 86400-second tool
+timeout remains available for the bounded Desk decision bridge.
+
+The distribution regression test now follows the native cwd contract without
+simulating unsupported interpolation, and checks that a host-provided data
+directory reaches the engine.
+
 ## [0.7.7] — 2026-10-15
 
 ### Fixed

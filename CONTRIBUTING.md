@@ -110,10 +110,13 @@ the plugin source.
 
 ## Plugin Packaging
 
-The MCP manifest must resolve its executable through `${PLUGIN_ROOT}`. A
-session's working directory belongs to the user's project, so `./bin/...`
-does not locate an installed plugin. `bin/finstack-runtime` owns MCP engine
-compilation; do not duplicate it in installation hooks.
+The native MCP manifest declares `cwd: "."`, which Codex resolves against the
+plugin root before launching `./bin/finstack-runtime`. Without a declared cwd,
+the command runs from the user's workspace. Native MCP manifests do not expand
+`${PLUGIN_ROOT}` or `${PLUGIN_DATA}` placeholders; that behavior belongs to
+the separate Agent Plugins schema. The runtime launcher owns compilation and
+maps a host-provided `PLUGIN_DATA` to `FINSTACK_HOME`; do not duplicate this
+bootstrap in installation hooks.
 
 The gate includes a source-only package test that runs from an unrelated
 directory. Before distributing a plugin change, also install the candidate in
